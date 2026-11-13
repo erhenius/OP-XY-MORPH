@@ -1,0 +1,99 @@
+// Generated startup for one collection, in ledger order. startup_exit.s calls
+// the two initializer continuations; the menu calls the catalog adapter in
+// place of stock catalog insertion; the compositor asks which pages are ours.
+// In a browser kit, an unselected machine's callbacks resolve to kit_absent,
+// which declines.
+#include <opxy/types.hpp>
+#include "stock.hpp"
+
+using opxy::u32;
+using opxy::i32;
+
+extern "C" {
+void sdk_startup_synth() __asm__("sdk_startup_synth");
+void sdk_startup_screen() __asm__("sdk_startup_screen");
+u32 extensions_catalog_checked(void*, const void*, u32) __asm__("extensions_catalog_checked");
+int kit_absent() __asm__("kit_absent");
+u32 stock_catalog_insert(void*, const void*, u32) __asm__("stock_catalog_insert");
+u32 stock_gui_role() __asm__("stock_gui_role");
+int sdk_screen_owned(u32) __asm__("sdk_screen_owned");
+u32 sdk_project_kept(void*) __asm__("sdk_project_kept");
+void sdk_project_loaded(const char*) __asm__("sdk_project_loaded");
+u32 sdk_project_locks_size(void*, u32) __asm__("sdk_project_locks_size");
+void sdk_project_locks_write(void*) __asm__("sdk_project_locks_write");
+void sdk_project_locks_begin() __asm__("sdk_project_locks_begin");
+void sdk_project_locks_byte(u32) __asm__("sdk_project_locks_byte");
+void sdk_project_locks_loaded(void*, u32) __asm__("sdk_project_locks_loaded");
+u32 sdk_project_locks_held_value(u32, u32, u32, i32*) __asm__("sdk_project_locks_held_value");
+u32 sdk_project_locks_held_set(u32, u32, u32, u32, i32) __asm__("sdk_project_locks_held_set");
+void sdk_project_locks_frame() __asm__("sdk_project_locks_frame");
+u32 sdk_sample_screen(u32) __asm__("sdk_sample_screen");
+int sdk_engine_installed(const void*) __asm__("sdk_engine_installed");
+int sdk_stock_engine_known(const void*) __asm__("sdk_stock_engine_known");
+@DECLARATIONS@
+}
+
+namespace {
+typedef __UINTPTR_TYPE__ Address;
+// Only engine, effect and sample rows call it; a collection of players has none.
+__attribute__((unused)) u32 value(const char* symbol) { return static_cast<u32>(reinterpret_cast<Address>(symbol)); }
+}
+
+int kit_absent() { return 0; }
+
+// What track control machines keep, written into a project's open companion, and
+// given back after a project loads: the control service's, when this collection links it.
+// Likewise the step-lock handles' calls (open-xy.locks, the held step, the frame): the
+// drum_locks service's, or 0.
+@PROJECT_KEPT@
+
+// Effects register on both roles, like stock FX initialisation; engines
+// register here on the audio role only.
+void sdk_startup_synth() {
+@EFFECTS@
+    if (stock_gui_role()) return;
+@ENGINES@
+}
+
+// On the GUI role an engine with its own page registers only after its screen
+// is in place; a failed page skips only that engine.
+void sdk_startup_screen() {
+@SCREENS@
+}
+
+// The stock catalog insertion ABI. An own name is admitted only with its
+// expected resolved ID while its machine is ready; every other name reaches
+// stock unchanged, except stock's missing-engine ID.
+u32 extensions_catalog_checked(void* catalog, const void* name, u32 id) {
+    if (id == @ENGINE_SENTINEL@) return 0;
+@CATALOG@
+    return stock_catalog_insert(catalog, name, id);
+}
+
+// 1 when page is the own screen of a machine that is ready (screen_order.cpp.in).
+int sdk_screen_owned(u32 page) {
+@OWNED_SCREENS@
+    return 0;
+}
+
+// While page is the stock sampler's page (2), the own screen page of the
+// selected track's sample engine when that screen is ready; else 0
+// (screen_order.cpp.in).
+u32 sdk_sample_screen(u32 page) {
+    if (page != 2) return 0;
+    const u32 track = opxy::platform::selected_track();
+    if (track >= opxy::platform::kTracks) return 0;
+    const u32 engine = opxy::platform::track_engine(track);
+@SAMPLE_SCREENS@
+    (void)engine;
+    return 0;
+}
+
+// 1 when this build installs the engine named (presets.cpp): a stock engine, or
+// one of this build's machines by name, since the preset scan can run before
+// they register. An unselected machine's name check is kit_absent.
+int sdk_engine_installed(const void* name) {
+    if (sdk_stock_engine_known(name)) return 1;
+@INSTALLED@
+    return 0;
+}

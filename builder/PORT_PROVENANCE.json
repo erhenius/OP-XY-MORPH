@@ -1,0 +1,9 @@
+{
+  "upstream": "https://github.com/etcetc000/open-xy",
+  "commit": "6642b3c6165043d29d4c9c9429294a42b71f924f",
+  "original_base": "52c8de911a415e043fd4d1afc396c3869fcd1029",
+  "sdk": "1.15",
+  "profile_changed": false,
+  "legacy_profile_changed": false,
+  "port": "Morph Gate35 AUX artwork revision; Gate34 functionally accepted by owner; Gate35 native/device verification pending"
+}

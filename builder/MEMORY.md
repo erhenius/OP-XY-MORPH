@@ -1,0 +1,15 @@
+# Preview 3 memory planning
+
+Scan XY or Load saved setup (a private device export containing os.ldr, layout.json and build.json). Matching kit/provenance remains required; saved firmware is reconstructed exactly before use. Baseline is the installed selection linked into the same expanded profile, not a live RAM reading. Lightweight allocation runs after scan/selection changes when no source compilation has been prepared.
+
+Calculate footprint optionally compiles missing machines through the authenticated full-collection kit pipeline. Catalog objects are usable without compilation only when source pins match the selected machine. Local ZIP/folder imports and bundled Morph require compilation; all selected sources are snapshotted. Calculation never calls device transfer or firmware patching; the SDK kit export may produce private intermediate verification artifacts. No native compiler is bundled.
+
+The bar accounts for allocated code/data/BSS/alignment plus the table reservation exactly once against 4,194,304 bytes. Unknown additions remain incomplete, with grey remaining space. Negative update delta reduces the baseline segment and is shown numerically. Shared dependencies mean individual footprints cannot simply be summed; no raw-object-size claim is made. Over-capacity SDK links stop early: an exact required total/shortage is unavailable, so the UI explicitly says so rather than fabricating one. Production limits are unchanged.
+
+Successful compilation caches the complete supported SDK kit export, keyed by source/resource snapshots, SDK files, matching kit, compiler files, host/preview compiler bytes, flags, layout and configuration. Cache entries have complete output hash inventories and are published only after export completion. Interrupted entries are not reusable; corrupt entries are refused. Compiler authentication runs on cache hits too. Changing inputs invalidates reuse. Cache is local under OPXY-SDK/private/xy-object-cache.
+
+Build after a matching compiled calculation reuses the kit, checks snapshots, original source trees, SDK, matching kit and compiler integrity, then independently patches and reconstructs the final firmware and checks allocation. Selection changes after compilation require recalculation/fresh scan. The final bar says Verified final firmware allocation. It does not mean measured CPU or hardware acceptance. Staging remains explicit and rechecks the connected baseline.
+
+Known limits: no native compilation/Mac UI/device acceptance in this environment; no exact overflow shortage from the current SDK; automatic lightweight refresh is deferred while busy or after compilation; per-machine marginal columns are not implemented. Existing Preview 2 limitations still apply.
+
+Acceptance: scan saved/live setup; verify baseline and reserved bytes; select known objects; import a local ZIP/folder and observe incomplete status; Calculate with compilation; Build and compare final bytes; mutate source and ensure reuse refuses; test cache reuse on fresh identical scan; stage only a reviewed candidate and WRITE OS/reboot on hardware.

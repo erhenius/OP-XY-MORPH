@@ -1,0 +1,370 @@
+--- a/PORT_PROVENANCE.json
++++ b/PORT_PROVENANCE.json
+@@ -5,5 +5,5 @@
+   "sdk": "1.15",
+   "profile_changed": false,
+   "legacy_profile_changed": false,
+-  "port": "Morph Gate33 routing and shared-LFO development; based on user-accepted Gate32; new native/hardware acceptance pending"
++  "port": "Gate34 development, based on hardware-functional Gate33; host verification only for this revision"
+ }
+--- a/app.py
++++ b/app.py
+@@ -18,8 +18,8 @@
+   controls=ttk.Frame(p);controls.pack(fill='x',pady=8)
+   for text,fn in [('Scan XY',self.scan),('Load saved setup',self.offline),('Calculate footprint',self.calculate),('Refresh catalog',self.refresh),('Import ZIP',self.zip),('Import folder',self.folder),('Add selected',self.add),('Clear additions',self.clear),('Build',self.build),('Cancel',self.cancel)]:ttk.Button(controls,text=text,command=fn).pack(side='left')
+   row=ttk.Frame(p);row.pack(fill='x')
+-  ttk.Button(row,text='Install bundled Morph (Gate33 routing + LFO)',command=self.install_morph).pack(side='left')
+-  ttk.Checkbutton(row,text='Replace installed Morph with bundled Gate33 routing + LFO',variable=self.update_morph,command=self.selection_changed).pack(side='left',padx=12)
++  ttk.Button(row,text='Install bundled Morph (Gate34 AUX + LFO responsiveness)',command=self.install_morph).pack(side='left')
++  ttk.Checkbutton(row,text='Replace installed Morph with bundled Gate34 AUX + LFO responsiveness',variable=self.update_morph,command=self.selection_changed).pack(side='left',padx=12)
+   self.memory_text=tk.StringVar(value='Memory: scan or load a saved setup')
+   ttk.Label(p,textvariable=self.memory_text,wraplength=1000).pack(anchor='w',pady=6)
+   self.memory_bar=tk.Canvas(p,height=22,highlightthickness=0);self.memory_bar.pack(fill='x')
+@@ -125,7 +125,7 @@
+    self.work('build',self.builder.finalize_calculated);return
+   if self.builder.job and (self.builder.job/'sources').exists():messagebox.showinfo('Scan again','Start a fresh scan before rebuilding.');return
+   update=self.update_morph.get()
+-  if update and not messagebox.askyesno('Replace Morph?', 'Rebuild with bundled Gate33 routing + LFO Morph while preserving its existing IDs? This is an explicit replacement, not automatic version detection. A fresh memory check and SDK backup apply.'):return
++  if update and not messagebox.askyesno('Replace Morph?', 'Rebuild with bundled Gate34 AUX + LFO responsiveness Morph while preserving its existing IDs? This is an explicit replacement, not automatic version detection. A fresh memory check and SDK backup apply.'):return
+   self.work('build',lambda:self.builder.build_selected(list(self.selected),update_morph=update))
+  def stage(self):
+   if self.busy:return
+--- a/boundary_cases.cpp
++++ b/boundary_cases.cpp
+@@ -367,6 +367,33 @@
+     state.travel=-64;morphcapture::schedule(state,false);drain();
+     check(writes==writes_before_disabled,"All-disabled collection still wrote sound values");
+     cv_lfo_on=0;telemetry25=0;lfo[11][3]=0;
++    {
++    // Gate34: unchanged destinations are still bounded to 16 inspections.
++    cv_lfo_on=0;telemetry25=0;lfo[11][3]=0;selected=11;
++    morphcapture::control_reset(state);fill(0x30000000);sdk_gui_tick();
++    capture(3);state.travel=0;morphcapture::schedule(state,false);
++    host_batch_reads=0;sdk_gui_tick();
++    check(host_batch_reads<=16u && state.cursor==16u,"Unchanged send scanned beyond the inspection budget");
++    drain();
++    state.phase=morphcapture::verify_first;state.cursor=0;
++    host_batch_reads=0;sdk_gui_tick();
++    check(host_batch_reads<=16u && state.cursor==16u,"Verification exceeded inspection budget");drain();
++    i32 untouched[2]={123,456};const u32 idx[2]={0,1};
++    check(!sdk_morph_stored_batch_read(0,idx,2,untouched) && untouched[0]==123 && untouched[1]==456,
++      "Out-of-callback batch published values");
++    // A context change during a batch must not publish a partial capture.
++    const i32 old_a=state.scene[0][0][0];
++    invalidate_on_value_read=true;capture(0);
++    check(state.scene[0][0][0]==old_a,"Interrupted capture published batch data");
++    project_bytes[6]=0;sdk_gui_tick();
++    // New routing graphics are visible only on AUX; both banks share the mask.
++    morphcapture::Frame route_frame={};morphcapture::DisplayState ds={};opxy::draw::Input di={};di.track=11;
++    page_key=2;sdk_gui_tick();morphcapture::display(ds,di,route_frame);
++    check(route_frame.nodes[32].x==16*opxy::draw::unit && route_frame.nodes[33].x==640*opxy::draw::unit,
++      "Routing bank indication is wrong");
++    di.track=0;morphcapture::display(ds,di,route_frame);
++    for(u32 n=8;n<34;++n)check(route_frame.nodes[n].x==640*opxy::draw::unit,"AUX artwork leaked into instrument HUD");
++    }
+     std::printf("Gate33 additional state: %zu; page/bank/last-LFO statics: %zu; payload %u bytes\n",
+       sizeof(state)-4404u,sizeof(morphcapture::aux_page)+sizeof(morphcapture::route_bank)+sizeof(morphcapture::lfo_was_active),morphcapture::kSavedBytes);
+     std::printf("Gate32 identified new static bytes (before linker padding): %zu; persistence bytes: %u\n",
+--- a/machine/Built_definition.json
++++ b/machine/Built_definition.json
+@@ -60,7 +60,7 @@
+       "stateAlignment": 4,
+       "paths": 0,
+       "points": 0,
+-      "nodes": 8,
++      "nodes": 34,
+       "texts": 26,
+       "palette": 1
+     },
+--- a/machine/control.cpp
++++ b/machine/control.cpp
+@@ -391,8 +391,8 @@
+ }
+ inline bool read_all(i32 (&into)[kTracks][kParams]) {
+  // All-or-nothing preflight: never partly replace a scene or S on a failed read.
+- for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i)
+-  if(!sdk_morph_stored_current_read(t,slots[i],&into[t][i]))return false;
++ for(u32 t=0;t<kTracks;++t)
++  if(!sdk_morph_stored_batch_read(t,slots,kParams,into[t]))return false;
+  return sdk_morph_session_context_ok();
+ }
+ inline bool capture_startup(ControlState& s) {
+@@ -561,23 +561,21 @@
+  s.mode=1u;movement_lane.activate();movement_lane.primed=false;return true;
+ }
+ inline void submit_tick(ControlState& s) {
+- u32 accepted=0u;
+- while(s.cursor<kTracks*kParams && accepted<ctrl::store_capacity) {
+-  const u32 t=s.cursor/kParams;
++ u32 inspected=0u;
++ while(s.cursor<kTracks*kParams && inspected<ctrl::store_capacity) {
++  const u32 t=s.cursor/kParams,p=s.cursor%kParams;
+   if(!(s.active_tracks&(1u<<t))){s.cursor=(t+1u)*kParams;continue;}
+-  const u32 p=s.cursor%kParams;
+-  i32 actual=0;
+-  if(!sdk_morph_stored_current_read(t,slots[p],&actual)){
+-   s.phase=failed;s.fault=1u;return;
+-  }
+-  const i32 want=desired(s,t,p);
+-  if(actual!=want) {
+-   if(!sdk_morph_stored_once_submit(t,slots[p],want)){
++  const u32 available=kParams-p,remaining=ctrl::store_capacity-inspected;
++  const u32 count=available<remaining?available:remaining;
++  i32 actual[ctrl::store_capacity];
++  if(!sdk_morph_stored_batch_read(t,slots+p,count,actual)){s.phase=failed;s.fault=1u;return;}
++  for(u32 j=0;j<count;++j){
++   const i32 want=desired(s,t,p+j);
++   if(actual[j]!=want && !sdk_morph_stored_once_submit(t,slots[p+j],want)){
+     s.phase=failed;s.fault=2u;return;
+    }
+-   ++accepted;
++   ++s.cursor;++inspected;
+   }
+-  ++s.cursor;
+  }
+  if(s.cursor==kTracks*kParams){s.phase=verify_first;s.cursor=0u;}
+ }
+@@ -586,20 +584,19 @@
+  while(s.cursor<kTracks*kParams && checked<ctrl::store_capacity) {
+   const u32 t=s.cursor/kParams,p=s.cursor%kParams;
+   if(!(s.active_tracks&(1u<<t))){s.cursor=(t+1u)*kParams;continue;}
+-  i32 current=0;
+-  if(!sdk_morph_stored_current_read(t,slots[p],&current) ||
+-     current!=desired(s,t,p)){
+-   s.fault=3u;s.phase=failed;return;
++  const u32 available=kParams-p,remaining=ctrl::store_capacity-checked;
++  const u32 count=available<remaining?available:remaining;
++  i32 current[ctrl::store_capacity];
++  if(!sdk_morph_stored_batch_read(t,slots+p,count,current)){s.fault=3u;s.phase=failed;return;}
++  for(u32 j=0;j<count;++j){
++   if(current[j]!=desired(s,t,p+j)){s.fault=3u;s.phase=failed;return;}
++   ++s.cursor;++checked;
+   }
+-  ++s.cursor;++checked;
+  }
+  if(s.cursor==kTracks*kParams) {
+   s.cursor=0u;
+   if(s.phase==verify_first)s.phase=verify_second;
+-  else {
+-   s.phase=idle;
+-   if(s.target_bypass){s.mode=0u;s.travel=0;s.origin_ready=0u;}
+-  }
++  else {s.phase=idle;if(s.target_bypass){s.mode=0u;s.travel=0;s.origin_ready=0u;}}
+  }
+ }
+ 
+@@ -778,7 +775,7 @@
+     }
+    } else s.fault=10u;
+   }
+-  const bool lfo_active=sdk_morph_movement_lfo_active();
++  const bool lfo_active=s.mode && s.phase==idle && !movement_lane.blocked && sdk_morph_movement_lfo_active();
+   if(!turns[3] && s.mode && s.phase==idle && !movement_lane.blocked &&
+      (lfo_active || lfo_was_active)) {
+    // Finish every complete transaction before sampling a new target. No
+--- a/machine/definition.json
++++ b/machine/definition.json
+@@ -60,7 +60,7 @@
+       "stateAlignment": 4,
+       "paths": 0,
+       "points": 0,
+-      "nodes": 8,
++      "nodes": 34,
+       "texts": 26,
+       "palette": 1
+     },
+--- a/machine/display.cpp
++++ b/machine/display.cpp
+@@ -13,24 +13,31 @@
+  morph_hud::State neutral={};neutral.enter_m2(11u);
+  morph_hud::render(frame,empty,neutral,false,false,false,false,0u);
+  opxy::draw::place(frame,7u,0,0,opxy::draw::unit,0u,opxy::draw::keep);
++ for(u32 n=0;n<8;++n)opxy::draw::place(frame,24u+n,static_cast<i32>(n)*60*opxy::draw::unit,0,opxy::draw::unit,0u,opxy::draw::keep);
+  if(opxy::control::from_control(4u)==2) {
+   const u32 bank=static_cast<u32>(opxy::control::from_control(6u))&1u;
+   const u32 mask=static_cast<u32>(opxy::control::from_control(5u));
+   for(u32 k=0;k<4u;++k){
+-   char label[8]="Track 1";label[6]=static_cast<char>('1'+bank*4u+k);
++   char label[8]="track 1";label[6]=static_cast<char>('1'+bank*4u+k);
+    opxy::draw::header(frame,k,label);
+-   opxy::draw::text(frame,18u+k,(16+120*static_cast<i32>(k))*opxy::draw::unit,
+-       55*opxy::draw::unit,opxy::draw::unit,label);
+-   opxy::draw::text(frame,22u+k,(16+120*static_cast<i32>(k))*opxy::draw::unit,
+-       128*opxy::draw::unit,opxy::draw::unit,(mask&(1u<<(bank*4u+k)))?"ON":"OFF");
++   opxy::draw::text(frame,18u+k,(10+120*static_cast<i32>(k))*opxy::draw::unit,
++       15*opxy::draw::unit,opxy::draw::unit,label);
+   }
++  for(u32 t=0;t<8u;++t){
++   const u32 n=8u+t+((mask&(1u<<t))?8u:0u);
++   opxy::draw::place(frame,n,(26+116*static_cast<i32>(t%4u))*opxy::draw::unit,
++       (48+86*static_cast<i32>(t/4u))*opxy::draw::unit,opxy::draw::unit,0u,opxy::draw::keep);
++  }
++  opxy::draw::place(frame,32u+bank,16*opxy::draw::unit,
++      (39+86*static_cast<i32>(bank))*opxy::draw::unit,opxy::draw::unit,0u,opxy::draw::keep);
++  for(u32 k=22;k<26;++k)opxy::draw::text(frame,k,640*opxy::draw::unit,320*opxy::draw::unit,opxy::draw::unit,"");
+   return;
+  }
+  const char* labels[4]={"A","B","S","Morph"};
+  for(u32 i=0u;i<4u;++i) {
+   opxy::draw::header(frame,i,labels[i]);
+-  opxy::draw::text(frame,18u+i,(16+120*static_cast<i32>(i))*opxy::draw::unit,
+-      22*opxy::draw::unit,opxy::draw::unit,labels[i]);
++  opxy::draw::text(frame,18u+i,(10+120*static_cast<i32>(i))*opxy::draw::unit,
++      15*opxy::draw::unit,opxy::draw::unit,labels[i]);
+  }
+  hud::Snapshot status={};
+  const bool valid=sdk_morph_hud_snapshot_read(11u,&status) && status.abi==hud::kSnapshotABI;
+@@ -56,6 +63,7 @@
+  opxy::draw::text(frame,25u,24*opxy::draw::unit,180*opxy::draw::unit,opxy::draw::unit,amount);
+ }
+ inline void display(DisplayState&,const opxy::draw::Input& input,Frame& frame) {
++ for(u32 n=8;n<34;++n)opxy::draw::hide(frame,n);
+  if(input.track==11u){aux_face(frame);return;}
+  morph_hud::Snapshot view={};
+  view.audible_scene=morph_hud::Unknown;
+--- a/machine/machine.json
++++ b/machine/machine.json
+@@ -2,5 +2,5 @@
+   "schema": 1,
+   "sdk": "1.15",
+   "kind": "synth",
+-  "description": "Morph Gate33 development: BRAIN-style track routing and stock M4 LFO movement, retaining Gate32 automation"
++  "description": "Morph Gate34 development: bounded LFO work and revised AUX routing display"
+ }
+--- a/machine/morph_hud.hpp
++++ b/machine/morph_hud.hpp
+@@ -39,7 +39,7 @@
+ // grouped. Actual device font alignment needs a hardware visual check.
+ // 0..5 ordinary rows, 6..9 red duplicates, 10..11 bank labels,
+ // 12..13 inverted bank labels, 14 large audible A/B.
+-using Frame = d::Frame<0, 0, 8, 26, 1>;
++using Frame = d::Frame<0, 0, 34, 26, 1>;
+ constexpr u32 plain_row(u32 bank, u32 row) { return bank*3u + row; }
+ constexpr u32 red_row(u32 bank, u32 row) { return 6u + bank*2u + (row == RowB ? 1u : 0u); }
+ constexpr u32 ordinary_bank(u32 bank) { return 10u + bank; }
+--- a/machine/panel.svg.fragment
++++ b/machine/panel.svg.fragment
+@@ -42,13 +42,40 @@
+ <circle id="morphcapture_palette_0" cx="650" cy="0" r="1" fill="#ffffff" stroke="#ffffff" stroke-width="1" />
+ <!-- CV/AUX face covers the instrument-only HUD.  Node 7 moves offscreen on instruments. -->
+ <path id="morphcapture_node_7" d="M0 0H480V220H0Z" transform="matrix(1 0 0 1 0 0)" fill="#050505" stroke="none" />
++<path id="morphcapture_node_8" d="M0 0H78V48H0ZM1 1V47H77V1ZM32.9429 34.0V31.7588H38.2017V15.8799L33.5435 19.2051V16.7148L38.4214 13.3604H40.8530V31.7588H45.8774V34.0Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_9" d="M0 0H78V48H0ZM1 1V47H77V1ZM32.1665 34.0V32.1396Q32.9136 30.4258 33.9902 29.1147Q35.0669 27.8037 36.2534 26.7417Q37.4399 25.6797 38.6045 24.7715Q39.7690 23.8633 40.7065 22.9551Q41.6440 22.0469 42.2227 21.0508Q42.8013 20.0547 42.8013 18.7949Q42.8013 17.0957 41.8052 16.1582Q40.8091 15.2207 39.0366 15.2207Q37.3521 15.2207 36.2607 16.1362Q35.1694 17.0518 34.9790 18.7070L32.2837 18.4580Q32.5767 15.9824 34.3857 14.5176Q36.1948 13.0527 39.0366 13.0527Q42.1567 13.0527 43.8340 14.5249Q45.5112 15.9971 45.5112 18.7070Q45.5112 19.9082 44.9619 21.0947Q44.4126 22.2812 43.3286 23.4678Q42.2446 24.6543 39.1831 27.1445Q37.4985 28.5215 36.5024 29.6274Q35.5063 30.7334 35.0669 31.7588H45.8335V34.0Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_10" d="M0 0H78V48H0ZM1 1V47H77V1ZM46.0239 28.3018Q46.0239 31.1582 44.2075 32.7256Q42.3911 34.2930 39.0220 34.2930Q35.8872 34.2930 34.0195 32.8794Q32.1519 31.4658 31.8003 28.6973L34.5249 28.4482Q35.0522 32.1104 39.0220 32.1104Q41.0142 32.1104 42.1494 31.1289Q43.2847 30.1475 43.2847 28.2139Q43.2847 26.5293 41.9883 25.5845Q40.6919 24.6396 38.2456 24.6396H36.7515V22.3545H38.1870Q40.3550 22.3545 41.5488 21.4097Q42.7427 20.4648 42.7427 18.7949Q42.7427 17.1396 41.7686 16.1802Q40.7944 15.2207 38.8755 15.2207Q37.1323 15.2207 36.0557 16.1143Q34.9790 17.0078 34.8032 18.6338L32.1519 18.4287Q32.4448 15.8945 34.2539 14.4736Q36.0630 13.0527 38.9048 13.0527Q42.0103 13.0527 43.7314 14.4956Q45.4526 15.9385 45.4526 18.5166Q45.4526 20.4941 44.3467 21.7319Q43.2407 22.9697 41.1313 23.4092V23.4678Q43.4458 23.7168 44.7349 25.0205Q46.0239 26.3242 46.0239 28.3018Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_11" d="M0 0H78V48H0ZM1 1V47H77V1ZM43.5630 29.3271V34.0H41.0728V29.3271H31.3462V27.2764L40.7944 13.3604H43.5630V27.2471H46.4634V29.3271ZM41.0728 16.3340Q41.0435 16.4219 40.6626 17.1104Q40.2817 17.7988 40.0913 18.0771L34.8032 25.8701L34.0122 26.9541L33.7778 27.2471H41.0728Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_12" d="M0 0H78V48H0ZM1 1V47H77V1ZM46.0825 27.2764Q46.0825 30.5430 44.1416 32.4180Q42.2007 34.2930 38.7583 34.2930Q35.8726 34.2930 34.1001 33.0332Q32.3276 31.7734 31.8589 29.3857L34.5249 29.0781Q35.3599 32.1396 38.8169 32.1396Q40.9409 32.1396 42.1421 30.8579Q43.3433 29.5762 43.3433 27.3350Q43.3433 25.3867 42.1348 24.1855Q40.9263 22.9844 38.8755 22.9844Q37.8062 22.9844 36.8833 23.3213Q35.9604 23.6582 35.0376 24.4639H32.4595L33.1479 13.3604H44.8813V15.6016H35.5503L35.1548 22.1494Q36.8687 20.8311 39.4175 20.8311Q42.4644 20.8311 44.2734 22.6182Q46.0825 24.4053 46.0825 27.2764Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_13" d="M0 0H78V48H0ZM1 1V47H77V1ZM46.0239 27.2471Q46.0239 30.5137 44.2515 32.4033Q42.4790 34.2930 39.3589 34.2930Q35.8726 34.2930 34.0269 31.7002Q32.1812 29.1074 32.1812 24.1562Q32.1812 18.7949 34.1001 15.9238Q36.0190 13.0527 39.5640 13.0527Q44.2368 13.0527 45.4526 17.2568L42.9331 17.7109Q42.1567 15.1914 39.5347 15.1914Q37.2788 15.1914 36.0410 17.2935Q34.8032 19.3955 34.8032 23.3799Q35.5210 22.0469 36.8247 21.3511Q38.1284 20.6553 39.8130 20.6553Q42.6694 20.6553 44.3467 22.4424Q46.0239 24.2295 46.0239 27.2471ZM43.3433 27.3643Q43.3433 25.1230 42.2446 23.9072Q41.1460 22.6914 39.1831 22.6914Q37.3374 22.6914 36.2021 23.7681Q35.0669 24.8447 35.0669 26.7344Q35.0669 29.1221 36.2461 30.6455Q37.4253 32.1689 39.2710 32.1689Q41.1753 32.1689 42.2593 30.8872Q43.3433 29.6055 43.3433 27.3643Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_14" d="M0 0H78V48H0ZM1 1V47H77V1ZM45.8335 15.4990Q42.6694 20.3330 41.3657 23.0723Q40.0620 25.8115 39.4102 28.4775Q38.7583 31.1436 38.7583 34.0H36.0044Q36.0044 30.0449 37.6816 25.6724Q39.3589 21.2998 43.2847 15.6016H32.1958V13.3604H45.8335Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_15" d="M0 0H78V48H0ZM1 1V47H77V1ZM46.0386 28.2432Q46.0386 31.0996 44.2222 32.6963Q42.4058 34.2930 39.0073 34.2930Q35.6968 34.2930 33.8291 32.7256Q31.9614 31.1582 31.9614 28.2725Q31.9614 26.2510 33.1187 24.8740Q34.2759 23.4971 36.0776 23.2041V23.1455Q34.3931 22.75 33.4189 21.4316Q32.4448 20.1133 32.4448 18.3408Q32.4448 15.9824 34.2100 14.5176Q35.9751 13.0527 38.9487 13.0527Q41.9956 13.0527 43.7607 14.4883Q45.5259 15.9238 45.5259 18.3701Q45.5259 20.1426 44.5444 21.4609Q43.5630 22.7793 41.8638 23.1162V23.1748Q43.8413 23.4971 44.9399 24.8521Q46.0386 26.2070 46.0386 28.2432ZM42.7866 18.5166Q42.7866 15.0156 38.9487 15.0156Q37.0884 15.0156 36.1143 15.8945Q35.1401 16.7734 35.1401 18.5166Q35.1401 20.2891 36.1436 21.2192Q37.1470 22.1494 38.9780 22.1494Q40.8384 22.1494 41.8125 21.2925Q42.7866 20.4355 42.7866 18.5166ZM43.2993 27.9941Q43.2993 26.0752 42.1567 25.1011Q41.0142 24.1270 38.9487 24.1270Q36.9419 24.1270 35.8140 25.1743Q34.6860 26.2217 34.6860 28.0527Q34.6860 32.3154 39.0366 32.3154Q41.1899 32.3154 42.2446 31.2827Q43.2993 30.25 43.2993 27.9941Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_16" d="M0 0H78V48H0ZM32.9429 34.0V31.7588H38.2017V15.8799L33.5435 19.2051V16.7148L38.4214 13.3604H40.8530V31.7588H45.8774V34.0Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_17" d="M0 0H78V48H0ZM32.1665 34.0V32.1396Q32.9136 30.4258 33.9902 29.1147Q35.0669 27.8037 36.2534 26.7417Q37.4399 25.6797 38.6045 24.7715Q39.7690 23.8633 40.7065 22.9551Q41.6440 22.0469 42.2227 21.0508Q42.8013 20.0547 42.8013 18.7949Q42.8013 17.0957 41.8052 16.1582Q40.8091 15.2207 39.0366 15.2207Q37.3521 15.2207 36.2607 16.1362Q35.1694 17.0518 34.9790 18.7070L32.2837 18.4580Q32.5767 15.9824 34.3857 14.5176Q36.1948 13.0527 39.0366 13.0527Q42.1567 13.0527 43.8340 14.5249Q45.5112 15.9971 45.5112 18.7070Q45.5112 19.9082 44.9619 21.0947Q44.4126 22.2812 43.3286 23.4678Q42.2446 24.6543 39.1831 27.1445Q37.4985 28.5215 36.5024 29.6274Q35.5063 30.7334 35.0669 31.7588H45.8335V34.0Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_18" d="M0 0H78V48H0ZM46.0239 28.3018Q46.0239 31.1582 44.2075 32.7256Q42.3911 34.2930 39.0220 34.2930Q35.8872 34.2930 34.0195 32.8794Q32.1519 31.4658 31.8003 28.6973L34.5249 28.4482Q35.0522 32.1104 39.0220 32.1104Q41.0142 32.1104 42.1494 31.1289Q43.2847 30.1475 43.2847 28.2139Q43.2847 26.5293 41.9883 25.5845Q40.6919 24.6396 38.2456 24.6396H36.7515V22.3545H38.1870Q40.3550 22.3545 41.5488 21.4097Q42.7427 20.4648 42.7427 18.7949Q42.7427 17.1396 41.7686 16.1802Q40.7944 15.2207 38.8755 15.2207Q37.1323 15.2207 36.0557 16.1143Q34.9790 17.0078 34.8032 18.6338L32.1519 18.4287Q32.4448 15.8945 34.2539 14.4736Q36.0630 13.0527 38.9048 13.0527Q42.0103 13.0527 43.7314 14.4956Q45.4526 15.9385 45.4526 18.5166Q45.4526 20.4941 44.3467 21.7319Q43.2407 22.9697 41.1313 23.4092V23.4678Q43.4458 23.7168 44.7349 25.0205Q46.0239 26.3242 46.0239 28.3018Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_19" d="M0 0H78V48H0ZM43.5630 29.3271V34.0H41.0728V29.3271H31.3462V27.2764L40.7944 13.3604H43.5630V27.2471H46.4634V29.3271ZM41.0728 16.3340Q41.0435 16.4219 40.6626 17.1104Q40.2817 17.7988 40.0913 18.0771L34.8032 25.8701L34.0122 26.9541L33.7778 27.2471H41.0728Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_20" d="M0 0H78V48H0ZM46.0825 27.2764Q46.0825 30.5430 44.1416 32.4180Q42.2007 34.2930 38.7583 34.2930Q35.8726 34.2930 34.1001 33.0332Q32.3276 31.7734 31.8589 29.3857L34.5249 29.0781Q35.3599 32.1396 38.8169 32.1396Q40.9409 32.1396 42.1421 30.8579Q43.3433 29.5762 43.3433 27.3350Q43.3433 25.3867 42.1348 24.1855Q40.9263 22.9844 38.8755 22.9844Q37.8062 22.9844 36.8833 23.3213Q35.9604 23.6582 35.0376 24.4639H32.4595L33.1479 13.3604H44.8813V15.6016H35.5503L35.1548 22.1494Q36.8687 20.8311 39.4175 20.8311Q42.4644 20.8311 44.2734 22.6182Q46.0825 24.4053 46.0825 27.2764Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_21" d="M0 0H78V48H0ZM46.0239 27.2471Q46.0239 30.5137 44.2515 32.4033Q42.4790 34.2930 39.3589 34.2930Q35.8726 34.2930 34.0269 31.7002Q32.1812 29.1074 32.1812 24.1562Q32.1812 18.7949 34.1001 15.9238Q36.0190 13.0527 39.5640 13.0527Q44.2368 13.0527 45.4526 17.2568L42.9331 17.7109Q42.1567 15.1914 39.5347 15.1914Q37.2788 15.1914 36.0410 17.2935Q34.8032 19.3955 34.8032 23.3799Q35.5210 22.0469 36.8247 21.3511Q38.1284 20.6553 39.8130 20.6553Q42.6694 20.6553 44.3467 22.4424Q46.0239 24.2295 46.0239 27.2471ZM43.3433 27.3643Q43.3433 25.1230 42.2446 23.9072Q41.1460 22.6914 39.1831 22.6914Q37.3374 22.6914 36.2021 23.7681Q35.0669 24.8447 35.0669 26.7344Q35.0669 29.1221 36.2461 30.6455Q37.4253 32.1689 39.2710 32.1689Q41.1753 32.1689 42.2593 30.8872Q43.3433 29.6055 43.3433 27.3643Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_22" d="M0 0H78V48H0ZM45.8335 15.4990Q42.6694 20.3330 41.3657 23.0723Q40.0620 25.8115 39.4102 28.4775Q38.7583 31.1436 38.7583 34.0H36.0044Q36.0044 30.0449 37.6816 25.6724Q39.3589 21.2998 43.2847 15.6016H32.1958V13.3604H45.8335Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_23" d="M0 0H78V48H0ZM46.0386 28.2432Q46.0386 31.0996 44.2222 32.6963Q42.4058 34.2930 39.0073 34.2930Q35.6968 34.2930 33.8291 32.7256Q31.9614 31.1582 31.9614 28.2725Q31.9614 26.2510 33.1187 24.8740Q34.2759 23.4971 36.0776 23.2041V23.1455Q34.3931 22.75 33.4189 21.4316Q32.4448 20.1133 32.4448 18.3408Q32.4448 15.9824 34.2100 14.5176Q35.9751 13.0527 38.9487 13.0527Q41.9956 13.0527 43.7607 14.4883Q45.5259 15.9238 45.5259 18.3701Q45.5259 20.1426 44.5444 21.4609Q43.5630 22.7793 41.8638 23.1162V23.1748Q43.8413 23.4971 44.9399 24.8521Q46.0386 26.2070 46.0386 28.2432ZM42.7866 18.5166Q42.7866 15.0156 38.9487 15.0156Q37.0884 15.0156 36.1143 15.8945Q35.1401 16.7734 35.1401 18.5166Q35.1401 20.2891 36.1436 21.2192Q37.1470 22.1494 38.9780 22.1494Q40.8384 22.1494 41.8125 21.2925Q42.7866 20.4355 42.7866 18.5166ZM43.2993 27.9941Q43.2993 26.0752 42.1567 25.1011Q41.0142 24.1270 38.9487 24.1270Q36.9419 24.1270 35.8140 25.1743Q34.6860 26.2217 34.6860 28.0527Q34.6860 32.3154 39.0366 32.3154Q41.1899 32.3154 42.2446 31.2827Q43.2993 30.25 43.2993 27.9941Z" fill="#eeeeee" fill-rule="evenodd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_24" d="M0 0H60V20H0Z" fill="#000000" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_25" d="M0 0H60V20H0Z" fill="#323232" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_26" d="M0 0H60V20H0Z" fill="#4b4b4b" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_27" d="M0 0H60V20H0Z" fill="#646464" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_28" d="M0 0H60V20H0Z" fill="#7d7d7d" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_29" d="M0 0H60V20H0Z" fill="#969696" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_30" d="M0 0H60V20H0Z" fill="#afafaf" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_31" d="M0 0H60V20H0Z" fill="#cdcdcd" stroke="none" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_32" d="M0 0H438V66H0Z" fill="none" stroke="#eeeeee" stroke-width="1" transform="matrix(1 0 0 1 640 320)"/>
++<path id="morphcapture_node_33" d="M0 0H438V66H0Z" fill="none" stroke="#eeeeee" stroke-width="1" transform="matrix(1 0 0 1 640 320)"/>
+ <!-- AUX encoder labels above the clean background. -->
+ <text id="morphcapture_text_18" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="15" fill="#f8f8f8" transform="matrix(1 0 0 1 0 0)">A</text>
+ <text id="morphcapture_text_19" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="15" fill="#f8f8f8" transform="matrix(1 0 0 1 0 0)">B</text>
+-<text id="morphcapture_text_20" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="15" fill="#f8f8f8" transform="matrix(1 0 0 1 0 0)">S</text>
+-<text id="morphcapture_text_21" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="15" fill="#f8f8f8" transform="matrix(1 0 0 1 0 0)">Morph</text>
++<text id="morphcapture_text_20" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="15" fill="#101010" transform="matrix(1 0 0 1 0 0)">S</text>
++<text id="morphcapture_text_21" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="15" fill="#101010" transform="matrix(1 0 0 1 0 0)">Morph</text>
+ <text id="morphcapture_text_22" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="20" fill="#f8f8f8" transform="matrix(1 0 0 1 0 0)"></text>
+ <text id="morphcapture_text_23" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="20" fill="#f8f8f8" transform="matrix(1 0 0 1 0 0)"></text>
+ <text id="morphcapture_text_24" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="24" fill="#f8f8f8" transform="matrix(1 0 0 1 0 0)"></text>
+ <text id="morphcapture_text_25" xml:space="preserve" font-family="UniversNextPro-Light, Helvetica Neue, Arial, sans-serif" font-size="24" fill="#f8f8f8" transform="matrix(1 0 0 1 0 0)"></text>
++
+ </g>
+--- a/sdk/sdk/include/opxy/morph_store_bridge.hpp
++++ b/sdk/sdk/include/opxy/morph_store_bridge.hpp
+@@ -71,3 +71,5 @@
+ extern "C" bool sdk_morph_movement_has_locks();
+ 
+ extern "C" bool sdk_morph_movement_lfo_active();
++
++extern "C" bool sdk_morph_stored_batch_read(opxy::u32 track,const opxy::u32* indices,opxy::u32 count,opxy::i32* out);
+--- a/sdk/sdk/platform/opxy-1.2.1/track_control.cpp
++++ b/sdk/sdk/platform/opxy-1.2.1/track_control.cpp
+@@ -225,10 +225,22 @@
+     for(u32 t=0;t<control::tracks;++t)into[t]=stock<u32(u32)>(0x8d587708)(t);
+ }
+ // Metadata is resolved for every track, independently of the visible page.
++// Cache only immutable catalog membership, never context or schema values.
++// Readiness, engine identity and every schema field are still read per check.
++static u32 morph_catalog_engine[8]={},morph_catalog_first[8]={};
+ opxy::morphport::ShiftSchema morph_schema(u32 track) {
+     opxy::morphport::ShiftSchema out={};
+     out.engine=track_engine(track);
+-    for(u32 n=0;n<sdk_synth_control_count;++n) {
++    u32 first=0;
++    if(track<8 && morph_catalog_first[track] && morph_catalog_engine[track]==out.engine)
++        first=morph_catalog_first[track]-1;
++    else {
++        while(first<sdk_synth_control_count && sdk_synth_controls[first].engine()!=out.engine)++first;
++        if(track<8){morph_catalog_engine[track]=out.engine;morph_catalog_first[track]=first+1;}
++    }
++    // Catalog engine IDs are unique; preserve the original loop's semantics
++    // even if an invalid catalog contains duplicate engine IDs.
++    for(u32 n=first;n<sdk_synth_control_count;++n) {
+         const SynthControls& m=sdk_synth_controls[n];
+         if(m.engine()!=out.engine || m.effect || m.ready()!=1 || !m.synth_shift)continue;
+         const SynthShift& r=*m.synth_shift;
+@@ -460,6 +472,32 @@
+     const i32 v=base(track,index);
+     if(v<0)return false;
+     *out=v;return true;
++}
++// Bounded, all-or-nothing stored reads under paired full session checks.
++// No cached context authorization crosses a batch or a GUI tick.
++extern "C" bool sdk_morph_stored_batch_read(u32 track,const u32* indices,u32 count,i32* out) {
++    if(!indices || !out || track>=8u || !count || count>34u ||
++       !morph_live_context() || muted(kMorphHost) || !morph_check(morph_session))return false;
++    const u32 block=stock<u32(u32)>(0x8d587708)(track);
++    if(!block)return false;
++    const opxy::morphport::ShiftSchema schema=morph_schema(track);
++    i32 pending[34];
++    for(u32 i=0;i<count;++i){
++        const u32 index=indices[i];
++        if(!opxy::morphport::supported(index))return false;
++        if(index>=64u){
++            namespace row=opxy::platform::synth_shift;
++            const u32 entry=index-64u;
++            pending[i]=entry>=schema.count || schema.choices[entry]==row::kAbsent?0:
++                static_cast<i32>(row::bounded(row::field(base(track,row::word_of(entry)),entry,schema.defaults),schema.choices[entry]));
++        } else {
++            pending[i]=static_cast<i32>(word(block+0x3864u+index*4u));
++            if(pending[i]<0)return false;
++        }
++    }
++    if(!morph_check(morph_session) || stock<u32(u32)>(0x8d587708)(track)!=block)return false;
++    for(u32 i=0;i<count;++i)out[i]=pending[i];
++    return true;
+ }
+ extern "C" bool sdk_morph_stored_once_submit(u32 track,u32 index,i32 value) {
+     if(!morph_live_context() || muted(kMorphHost) || !morph_check(morph_session) ||
+--- a/test_boundary.py
++++ b/test_boundary.py
+@@ -16,7 +16,10 @@
+     for pointer in ('T*','const volatile u32*','const volatile unsigned char*'):
+         stock=stock.replace('reinterpret_cast<'+pointer+'>(address)','reinterpret_cast<'+pointer+'>(host_stock_address(address))')
+     (out/'stock.hpp').write_text(stock)
+-    (out/'track_control.cpp').write_bytes(((HERE/'baseline' if BASELINE else platform)/'track_control.cpp').read_bytes())
++    tracked=((HERE/'baseline' if BASELINE else platform)/'track_control.cpp').read_text()
++    tracked=tracked.replace('extern "C" bool sdk_morph_stored_batch_read(u32 track,const u32* indices,u32 count,i32* out) {',
++        'u32 host_batch_reads=0;\nextern "C" bool sdk_morph_stored_batch_read(u32 track,const u32* indices,u32 count,i32* out) {\n    host_batch_reads+=count;')
++    (out/'track_control.cpp').write_text(tracked)
+     if BASELINE:(out/'control.cpp').write_bytes((HERE/'baseline/control.cpp').read_bytes())
+     screen=(platform/'screen_order.cpp.in').read_text().replace('@PAGE_LIMIT@','256')
+     screen=screen.replace('reinterpret_cast<const volatile opxy::u32*>(0x08024c8cu)','opxy::platform::at<const volatile opxy::u32>(0x08024c8cu)')

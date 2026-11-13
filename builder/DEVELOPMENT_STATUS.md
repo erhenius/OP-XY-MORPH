@@ -1,0 +1,1 @@
+Public Morph v1.0.0 pins Gate35. The owner reported successful feature integration with no regressions. Machine and SDK sources are unchanged. Public builder packaging selects an external private kit instead of shipping personal objects. Current evidence: ../docs/VALIDATION.md.

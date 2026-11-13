@@ -1,0 +1,638 @@
+
+Browser tests
+✔ activation starts within the input gesture and plays once startup completes (2.230093ms)
+✔ releasing a key before startup completes prevents a late or stuck note (0.475333ms)
+✔ stop/blur cancellation clears every waiting key and phrase (0.371803ms)
+✔ a released then re-pressed key plays only the newest request (0.308791ms)
+✔ repeated keydown does not replace or duplicate a waiting note (0.283113ms)
+✔ ready audio plays immediately without another initialization (0.195651ms)
+✔ failed startup clears pending state and permits another attempt (0.408051ms)
+✔ mute can be selected before audio exists and is applied before connecting output (2.682539ms)
+✔ mute and unmute change only the output gain while the context keeps running (0.224369ms)
+✔ mute survives failed audio setup and applies to a replacement output (0.138967ms)
+✔ a closed context cannot receive more output automation (0.110043ms)
+✔ any desktop browser with both APIs passes without requesting permissions (5.970505ms)
+✔ missing or nonfunctional API entries block even a Chrome identity (0.560038ms)
+✔ mobile Chrome and tablets in desktop mode cannot pass the desktop gate (0.396459ms)
+✔ profiling defaults on; disabling it changes only the reviewed diagnostic hooks (40.019785ms)
+✔ only an exact build restores its selection; others recover verified stock or are rejected (36.040418ms)
+✔ machines whose code lies within another present machine are tried without (1.506397ms)
+✔ an earlier release whose module loads elsewhere recovers stock OS 1.2.1 (3.189305ms)
+✔ the experimental 4 MiB layout moves only the module base and the heap immediates (16.509543ms)
+✔ a 4 MiB build loads its module lower, shrinks the heap and restores its selection (19.996198ms)
+✔ profiling option and profile hook condition must be exact booleans (3.736287ms)
+✔ inactive profiling hooks retain stock mapping and overlap guards (2.680963ms)
+✔ ELF parsing reads symbols and little-endian instructions (0.683303ms)
+✔ runtime objects enter only selections that import their arithmetic helpers (3.578839ms)
+✔ truncated sections, wrong architectures, merge flags, constructors and COMMON fail closed (1.038365ms)
+✔ exact deterministic section placement and immutable input capsules (2.762133ms)
+✔ extensions omit code/state and resolve only shared registry imports to an absent accessor (3.106896ms)
+✔ master processors are independently selectable and omitted accessors resolve safely (2.430912ms)
+✔ extension selections preserve collection order, empty choices and exclusive gestures (1.806388ms)
+✔ one selected extension owns stock Drumline's second page, as a claim (0.35349ms)
+✔ declared callbacks of unselected machines resolve to fallbacks only for SDK objects (1.677326ms)
+✔ SDK objects of a profile service link only when a selected machine uses it (1.197936ms)
+✔ track control and hidden pages use the control service, whose entry points fall back while unused (1.136377ms)
+✔ empty, unknown, repeated selections, duplicate globals and memory exhaustion are rejected (5.38824ms)
+✔ code, data and state share one module limit that names each machine (1.324782ms)
+✔ machine numbering cases shared with tooling.machines (8.186324ms)
+✔ numbers follow the layout, not the selection order, and unselected machines link as 0 (1.57061ms)
+✔ a sample engine drawing its own screen links its page apart from the sampler's (0.885155ms)
+✔ saved layouts restore numbers and selections, including older saved selections (2.895923ms)
+✔ undefined imports never silently become zero (2.396071ms)
+✔ full-width pointer and high/low immediate relocation (2.380659ms)
+✔ call relocation uses the instruction start and rejects odd or out-of-range destinations (1.288621ms)
+✔ curated profile and object authentication reject modified input (62.528988ms)
+✔ SDK 1.5 machines ask for no numbers and the selection gives them (47.535112ms)
+✔ a machine says where it comes from: a catalog release or a personal folder (128.441171ms)
+✔ machines are found by name, author, kind, description and keyword, in a chosen order (9.70415ms)
+✔ the CPU-high label follows the reported peak, or the average when no peak is reported (1.412003ms)
+✔ machine presets save, replace, delete and choose named selections by ID (18.492449ms)
+✔ malformed loader records and unsafe ZIP paths are rejected (0.645987ms)
+✔ firmware recovery rejects malformed and foreign loader layouts without private inputs (0.598572ms)
+✔ the release checks the linked machines, each other machine beside the official ones, and their subsets (0.32884ms)
+✔ players have stable separate types and share the relocated page pool (0.731256ms)
+✔ wire packets match upstream Ferret (4.569859ms)
+✔ malformed transport cannot become a reply (1.513978ms)
+✔ serial replies spanning MIDI messages preserve Ferret stream behavior (8.404874ms)
+✔ no automatic access; enable requires connect and uses only the selected pair (2.882371ms)
+✔ disable requires connection and changes only the bootloader marker operation (4.728259ms)
+✔ disable rejects changed identity, malformed challenge, timeout and cancellation (48.595305ms)
+✔ ambiguous devices and input pairs send no commands (0.865633ms)
+✔ Windows composite port names connect and diagnostics describe only reported ports (2.277607ms)
+✔ directional and composite OP-XY names pair without relying on driver manufacturer labels (5.294427ms)
+✔ differently named duplicate OP-XY inputs remain ambiguous even with one exact match (0.49121ms)
+✔ missing OP-XY input never falls back to an unrelated input (0.256791ms)
+✔ directional names still require the expected product and boot mode before writing (0.807631ms)
+✔ missing OP-XY reports visible ports without opening or probing other devices (0.540928ms)
+✔ wrong product, normal OS, changed unit, and invalid challenge never write a flag (2.543784ms)
+✔ challenge timeout disconnects and prevents retries from writing (33.0232ms)
+✔ disconnect during challenge aborts without writing or switching ports (1.457766ms)
+✔ double action and cancellation while awaiting permission cannot write (0.362813ms)
+✔ denied permission does not open ports or transmit (0.48283ms)
+✔ MIDI initialization timeout releases the session and ignores a late grant (21.952353ms)
+✔ cancel works while MIDI access never settles and allows a retry (0.663803ms)
+✔ both port-open waits time out without sending metadata or a flag (46.810104ms)
+✔ comparison examples demonstrate intact grayscale artwork and real colorful conversion (27.009526ms)
+✔ grayscale Waveform keeps consistent labeled tone roles with clear trace and meter contrast (3.720013ms)
+✔ step sequence uses four clear hue roles with readable labels and a color-independent selection (8.473724ms)
+✔ explicit colorful and legacy asset calls preserve original SVG bytes exactly (0.157715ms)
+✔ developer artwork takes precedence over conversion and preserves original no-op behavior (35.804504ms)
+✔ grayscale covers initial paint, text and every animation palette donor (1.118447ms)
+✔ hue distinctions survive equal luminance and take priority over source brightness (14.302818ms)
+✔ sparse palettes get wider hue separation while dense palettes share the available range (0.972283ms)
+✔ small palettes distinguish closer hues and reserve shading only where it is needed (1.463193ms)
+✔ palette mapping handles the hue wrap and is independent of aliases, order and frequency (9.08009ms)
+✔ weak tints and a single hue keep brightness without amplifying subdued backgrounds (0.319072ms)
+✔ existing grays, none, short hex and basic SVG colour names are supported (0.668446ms)
+✔ grayscale fails closed on unknown paints or SVG features that could bypass conversion (1.632828ms)
+✔ grayscale packaging preserves the note-player catalog and converts selected player artwork (11.183105ms)
+✔ per-machine overrides package mixed designs with authored grayscale and intact grayscale originals (24.15749ms)
+✔ invalid per-machine policies fail before packaging and stock screens cannot be overridden (1.609059ms)
+✔ packaging converts only selected screens and preserves the template, menu, presets and source (16.566878ms)
+✔ already-grayscale machine screens retain their exact packaged bytes and hashes (3.722086ms)
+✔ Extensions graphics defaults to original designs without firmware extensions, rebuilds downloads and rejects results made stale by a setting change (132.994681ms)
+✔ machine graphics settings preserve selected master artwork and reject asset collisions (19.492688ms)
+✔ relative dragging uses the existing range input without a jump and releases capture (3.319702ms)
+✔ dragging clamps both endpoints and responds immediately when direction reverses (0.434236ms)
+✔ Shift drag is ten times finer and retains small accumulated movements (0.573466ms)
+✔ cancellation, capture loss and focus loss cannot leave a stale drag active (0.902941ms)
+✔ keyboard adjustments share the range value and right-click does not start dragging (0.362101ms)
+✔ reads the original OS in chunks without using any write operations (513.357624ms)
+✔ reading rejects missing paths, folders and oversized files without creating anything (4.763544ms)
+✔ rejects mismatched transactions, operation codes and malformed file sizes (405.24586ms)
+✔ cancels a stalled read and releases the device without altering files (102.532475ms)
+✔ PTP strings round trip and match the wire layout (0.674794ms)
+✔ sends a file to the top level with the parent the OP–XY accepts (228.10794ms)
+✔ sends a whole build into existing folders, replacing files and keeping other content (18.256149ms)
+✔ ends a packet-aligned transfer with a zero-length packet (1.049811ms)
+✔ asks before replacing a file and never replaces a folder (1.823507ms)
+✔ explains a device held by another app and releases it (0.62701ms)
+✔ reports device refusals in plain language (1.617522ms)
+✔ rejects paths that would leave the device or name nothing (0.924288ms)
+✔ stopping mid-file cancels the transfer instead of leaving the device waiting (105.272644ms)
+✔ a second session after a clean close still gets going (1.963921ms)
+✔ a stalled endpoint is cleared and the transfer retried once (0.928848ms)
+✔ note activity counts distinct gates, retriggers, polyphonic releases and panic (1.615582ms)
+✔ note counters wrap and independent tracks retain separate gates (0.198397ms)
+✔ ABI 2 publishes held notes and releases independently of onset and reduced motion (2.281196ms)
+✔ invalid activity fails before mutating display input (12.161089ms)
+✔ ABI 1 previews retain their original storage and unsupported layouts fail (7.714058ms)
+✔ ABI 5 publishes the amp envelope after the drum model, and omission marks it unknown (0.957557ms)
+✔ ABI 4 previews ignore a supplied envelope and keep their storage (0.921904ms)
+✔ an edit shows its parameter at its position, or its whole page on a paged synth (0.300274ms)
+✔ partial second pages repeat the same saved controls without switching pages on a turn (2.661119ms)
+✔ ABI 3 publishes Shift and its choices, and ABI 4 a drum kit's model after them (1.555792ms)
+✔ ABI 6 publishes a padMix kit key's pan, level, pad fields and the encoders' row after the amp envelope (1.663909ms)
+✔ a line traced out and back over itself has no area (4.456326ms)
+✔ an outline that turns straight back at a point is reported (0.368487ms)
+✔ a thin closed ribbon, a figure eight and a collapsed outline pass (0.390623ms)
+✔ all selections include only their instrument presets with native names and definition defaults (23.808125ms)
+✔ a machine's own presets install beside its init preset, unchanged (6.244132ms)
+✔ a padMix kit's init preset has stock's filter, M3 off (0.640908ms)
+✔ an aux track-control machine keeps no instrument preset folder (0.16143ms)
+✔ a machine's own presets are checked again before they reach a device (5.828998ms)
+✔ preset generation rejects unsafe paths, foreign kinds and invalid engine parameter values (2.663277ms)
+✔ an aux machine's presets install as files, with the init of the role it replaces (0.769654ms)
+✔ a build refuses more aux presets than the OP-XY lists (11.236897ms)
+✔ arithmetic closure is lazy, deterministic, transitive and honors SDK definitions (2.742579ms)
+✔ arithmetic members cannot silently replace definitions or introduce weak symbols (0.762972ms)
+✔ configuration instances are isolated and exported settings cannot mutate stored choices (1.888105ms)
+✔ default UI is rendered once with default controls, frozen, and reused across comparisons and reopen (12.90756ms)
+✔ bulk install actions reset selected exceptions, retain unselected exceptions, and reuse snapshots (9.613478ms)
+✔ latest bulk action wins while rendering and closed dialogs receive no late images (4.720441ms)
+✔ disposing a dialog removes its handlers and blocks late snapshot results (3.085798ms)
+✔ failed modules leave other snapshots usable and missing modules have an explicit static fallback (4.966457ms)
+✔ an invalid artwork does not hide another machine’s rendered snapshot (1.649731ms)
+✔ enabling grayscale defaults every selected custom screen to grayscale before configuring exceptions (4.490456ms)
+✔ configuration derives enabled state from selected machines and applies bulk changes atomically (10.749417ms)
+✔ stock-only selections disable bulk actions and keep the installation default unchanged (2.189779ms)
+✔ the row renders as parameters 8..15, stored as the device stores it (3.805645ms)
+✔ a value may leave the row out, and a preset without it plays its defaults (1.965401ms)
+✔ a preset may set the row; the rest of the row plays its defaults (0.351685ms)
+✔ a synth without a row keeps eight words and its exact controls (0.385707ms)
+✔ a press with Shift held switches the page, and the row shown follows (1.886111ms)
+✔ a press without Shift switches the same page and the header shows its controls (0.529559ms)
+✔ a synth without a row presses as before (3.224329ms)
+✔ Mac reads and verifies the original OS, then remembers transfer mode for installation (37.306315ms)
+▶ wrong stock hash, missing original and busy apps never load an OS
+  ✔ {"files":{"upgrade/firmware/blackfin/bin/os.ldr":{"0":4,"1":5,"2":6}}} (12.309047ms)
+  ✔ {"files":{"os.ldr":{"0":1,"1":2,"2":3}}} (2.8956ms)
+  ✔ {"busy":true} (6.732158ms)
+✔ wrong stock hash, missing original and busy apps never load an OS (23.837234ms)
+▶ Windows and browsers without WebUSB keep the manual source path
+  ✔ windows (7.056983ms)
+  ✔ mac (4.651714ms)
+✔ Windows and browsers without WebUSB keep the manual source path (12.378984ms)
+✔ a manual Mac copy still closes transfer apps before sending a build (3.165344ms)
+✔ enabling connects and sends in one click; failures and menu retries keep the intended action (3.548614ms)
+✔ post-install disable runs directly and retries without restarting setup (2.577666ms)
+▶ missing OS recovery disables the menu before reinstalling, then restarts the correct source route
+  ✔ mac (5.007379ms)
+  ✔ windows (1.909825ms)
+✔ missing OS recovery disables the menu before reinstalling, then restarts the correct source route (7.326947ms)
+▶ recovery connection and disable failures stay on the same step for retry
+  ✔ connect (1.986358ms)
+  ✔ disable (1.971445ms)
+✔ recovery connection and disable failures stay on the same step for retry (4.278ms)
+▶ cancelling recovery during connection or disabling cannot advance or send a later command
+  ✔ connect (1.979164ms)
+  ✔ disable (2.875224ms)
+✔ cancelling recovery during connection or disabling cannot advance or send a later command (5.180998ms)
+✔ stopping a Mac read discards it and releases USB before a retry (118.625063ms)
+✔ installation links preview the edited steps without a build or device access (6.36344ms)
+▶ MTP format guidance requires acknowledgement and resumes the original copy or install route
+  ✔ source (2.279796ms)
+  ✔ install (2.016406ms)
+✔ MTP format guidance requires acknowledgement and resumes the original copy or install route (4.830928ms)
+✔ leaving format preparation resets the next installation route (2.612349ms)
+ℹ tests 180
+ℹ suites 0
+ℹ pass 180
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1662.206299
+
+Python checks
+/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_native_units.py:109: SyntaxWarning: invalid escape sequence '\@'
+  'macro substitution': mutated('.section .text', '.macro twice\n    R0 = \@;\n.endm\n.section .text'),
+.s..................FAIL: git ls-tree --name-only failed: fatal: not a git repository (or any parent up to mount point /workspace/scratch)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+F..................................................s..................FEEFFAIL: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpikv2nga5/record)
+E..FFAIL: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpwrsz537d/record)
+EFFFF.FE.E..FEFF.FFEE...EE.FEs..s....s.............s...............s................s...........................................127.0.0.1 - - [13/Nov/2026 13:45:34] "GET /preview/engine.wasm HTTP/1.1" 200 -
+127.0.0.1 - - [13/Nov/2026 13:45:34] "HEAD /preview/engine.wasm HTTP/1.1" 200 -
+127.0.0.1 - - [13/Nov/2026 13:45:34] code 404, message Not Found
+127.0.0.1 - - [13/Nov/2026 13:45:34] "GET /preview/../engine.wasm HTTP/1.1" 404 -
+127.0.0.1 - - [13/Nov/2026 13:45:34] code 404, message Not Found
+127.0.0.1 - - [13/Nov/2026 13:45:34] "GET /preview/vectors.json HTTP/1.1" 404 -
+127.0.0.1 - - [13/Nov/2026 13:45:34] code 404, message Not Found
+127.0.0.1 - - [13/Nov/2026 13:45:34] "GET /local/inputs/os.ldr HTTP/1.1" 404 -
+...s............s.ss.................................s.............ssssssss........s.......s........E..................E...................sssss........................................FFF........................................sss................s........s...................ss.......s.WARNING: probesynth: Worst observed block peak 4.578% of the block budget across all measured workloads is above the recommended 3.5%; make it lighter where you can (docs/profiling.md)
+wrote /workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpavvmbzwi/song.oxy
+/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpavvmbzwi/song.xy: companion applies: karplus, pingpong, timestretch
+Downloading http://127.0.0.1:34817/tools.zip
+127.0.0.1 - - [13/Nov/2026 13:46:11] "GET /tools.zip HTTP/1.1" 200 -
+................s...........E.....
+======================================================================
+ERROR: test_a_planning_failure_says_nothing_was_written (test_device.DeviceTransferTests.test_a_planning_failure_says_nothing_was_written)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 352, in test_a_planning_failure_says_nothing_was_written
+    transfer.push(device, self.files(), self.temp / 'record')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 188, in push
+    check_record(record)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp01wcc1un/record)
+
+======================================================================
+ERROR: test_a_record_that_cannot_be_saved_does_not_undo_a_verified_push (test_device.DeviceTransferTests.test_a_record_that_cannot_be_saved_does_not_undo_a_verified_push)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 383, in test_a_record_that_cannot_be_saved_does_not_undo_a_verified_push
+    transfer.push(device, self.files(), self.temp / 'record')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 188, in push
+    check_record(record)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp6bjaii9j/record)
+
+======================================================================
+ERROR: test_cli_push_list_and_pull (test_device.DeviceTransferTests.test_cli_push_list_and_pull)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 387, in main
+    check_record(record)  # Before the device is opened.
+    ^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpikv2nga5/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 434, in test_cli_push_list_and_pull
+    transfer.main(['push', str(self.source), '--record', str(self.temp / 'record')], connect=lambda: device)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 423, in main
+    parser.exit(1, 'FAIL: ' + str(error) + (f'; {state}' if state else '') + '\n')
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/argparse.py", line 2637, in exit
+    _sys.exit(status)
+SystemExit: 1
+
+======================================================================
+ERROR: test_explicit_unchecked_cli_never_reads_or_backs_up (test_device.DeviceTransferTests.test_explicit_unchecked_cli_never_reads_or_backs_up)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 387, in main
+    check_record(record)  # Before the device is opened.
+    ^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpwrsz537d/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 141, in test_explicit_unchecked_cli_never_reads_or_backs_up
+    transfer.main(['push', str(self.source), '--record', str(self.temp / 'record'),
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 423, in main
+    parser.exit(1, 'FAIL: ' + str(error) + (f'; {state}' if state else '') + '\n')
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/argparse.py", line 2637, in exit
+    _sys.exit(status)
+SystemExit: 1
+
+======================================================================
+ERROR: test_interrupt_mid_write_restores_and_records (test_device.DeviceTransferTests.test_interrupt_mid_write_restores_and_records)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 235, in test_interrupt_mid_write_restores_and_records
+    transfer.push(device, self.files(), self.temp / 'record')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 188, in push
+    check_record(record)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp3kpnsmfx/record)
+
+======================================================================
+ERROR: test_names_match_without_case_and_new_files_take_no_sibling_type (test_device.DeviceTransferTests.test_names_match_without_case_and_new_files_take_no_sibling_type)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 259, in test_names_match_without_case_and_new_files_take_no_sibling_type
+    transfer.push(device, self.files(), self.temp / 'record')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 188, in push
+    check_record(record)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp26ey08wr/record)
+
+======================================================================
+ERROR: test_push_replaces_backs_up_creates_folders_and_verifies (test_device.DeviceTransferTests.test_push_replaces_backs_up_creates_folders_and_verifies)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 128, in test_push_replaces_backs_up_creates_folders_and_verifies
+    report = transfer.push(device, self.files(), self.temp / 'record')
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 188, in push
+    check_record(record)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp5w0q8avi/record)
+
+======================================================================
+ERROR: test_replacing_keeps_the_device_name_case (test_device.DeviceTransferTests.test_replacing_keeps_the_device_name_case)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 396, in test_replacing_keeps_the_device_name_case
+    transfer.push(device, self.files(), self.temp / 'record')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 188, in push
+    check_record(record)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp3ek7p2fb/record)
+
+======================================================================
+ERROR: test_restore_keeps_the_replaced_file_type (test_device.DeviceTransferTests.test_restore_keeps_the_replaced_file_type)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 404, in test_restore_keeps_the_replaced_file_type
+    self.assertIsNotNone(device.likes['os.ldr'], 'The restored file takes the original entry type')
+                         ~~~~~~~~~~~~^^^^^^^^^^
+KeyError: 'os.ldr'
+
+======================================================================
+ERROR: test_unchanged_files_are_neither_backed_up_nor_rewritten (test_device.DeviceTransferTests.test_unchanged_files_are_neither_backed_up_nor_rewritten)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 408, in test_unchanged_files_are_neither_backed_up_nor_rewritten
+    transfer.push(device, self.files(), self.temp / 'record')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 188, in push
+    check_record(record)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp8k_p_k1n/record)
+
+======================================================================
+ERROR: test_unchecked_failure_records_partial_transfer_without_rollback (test_device.DeviceTransferTests.test_unchecked_failure_records_partial_transfer_without_rollback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 157, in test_unchecked_failure_records_partial_transfer_without_rollback
+    transfer.push_unchecked(device, self.files(), self.temp / 'record')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 294, in push_unchecked
+    check_record(record)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp3buwrx3g/record)
+
+======================================================================
+ERROR: test_unchecked_preflight_refuses_pending_update_and_path_conflicts (test_device.DeviceTransferTests.test_unchecked_preflight_refuses_pending_update_and_path_conflicts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 179, in test_unchecked_preflight_refuses_pending_update_and_path_conflicts
+    self.assertEqual(caught.exception.device_state, 'nothing was written to the device')
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ValueError' object has no attribute 'device_state'
+
+======================================================================
+ERROR: test_the_report_stays_out_of_checkouts_and_carries_the_target_layout (test_os_port.OsPort.test_the_report_stays_out_of_checkouts_and_carries_the_target_layout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_os_port.py", line 99, in test_the_report_stays_out_of_checkouts_and_carries_the_target_layout
+    os_port.main(args + ['--out', str(root / 'out')])
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tools/os_port.py", line 340, in main
+    require(outside_checkouts(args.out), 'The report holds stock code: write it outside every checkout '
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: The report holds stock code: write it outside every checkout (the private folder, docs/porting.md)
+
+======================================================================
+ERROR: test_overwrite_wipes_the_output_folder (test_pipeline.SourceContracts.test_overwrite_wipes_the_output_folder)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_pipeline.py", line 206, in test_overwrite_wipes_the_output_folder
+    self.assertEqual(fresh_output(path, overwrite=True), path.resolve())
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/pipeline.py", line 214, in fresh_output
+    wipe_output(given.resolve(), keep)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/pipeline.py", line 204, in wipe_output
+    require(not path.is_relative_to(ROOT) or path.is_relative_to(ROOT / 'local'),
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Inside the checkout, only local/ can be overwritten
+
+======================================================================
+ERROR: test_push_runs_over_the_protocol_end_to_end (test_usbmtp.UsbMtpTests.test_push_runs_over_the_protocol_end_to_end)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_usbmtp.py", line 219, in test_push_runs_over_the_protocol_end_to_end
+    report = transfer.push(device, {('os.ldr',): b'new os', ('content', 'display', 'mine.svg'): b'<svg/>'}, temp / 'record')
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 188, in push
+    check_record(record)
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/device.py", line 98, in check_record
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tooling/formats.py", line 10, in require
+    raise ValueError(message)
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpznvcsndn/record)
+
+======================================================================
+FAIL: test_the_check_command_compares_with_the_base_catalog (test_catalog.Controls.test_the_check_command_compares_with_the_base_catalog)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_catalog.py", line 374, in test_the_check_command_compares_with_the_base_catalog
+    self.assertEqual(catalog.main(['check', '--base', 'HEAD', '--cache', str(self.cache)]), 0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_a_delete_that_takes_effect_then_errors_is_still_restored (test_device.DeviceTransferTests.test_a_delete_that_takes_effect_then_errors_is_still_restored)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpwkjgocmw/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 332, in test_a_delete_that_takes_effect_then_errors_is_still_restored
+    with self.assertRaisesRegex(ValueError, 'driver error after deleting'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "driver error after deleting" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpwkjgocmw/record)"
+
+======================================================================
+FAIL: test_a_reused_object_id_does_not_skip_the_restore (test_device.DeviceTransferTests.test_a_reused_object_id_does_not_skip_the_restore)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpmvyp2ass/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 320, in test_a_reused_object_id_does_not_skip_the_restore
+    with self.assertRaisesRegex(ValueError, 'Readback of os.ldr'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "Readback of os.ldr" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpmvyp2ass/record)"
+
+======================================================================
+FAIL: test_existing_record_is_refused_before_connecting (test_device.DeviceTransferTests.test_existing_record_is_refused_before_connecting)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 306, in test_existing_record_is_refused_before_connecting
+    self.assertIn('already exists', err.getvalue())
+AssertionError: 'already exists' not found in 'FAIL: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp2ebxk22j/record)\n'
+
+======================================================================
+FAIL: test_failed_delete_leaves_the_original_untouched (test_device.DeviceTransferTests.test_failed_delete_leaves_the_original_untouched)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp0yggeh63/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 312, in test_failed_delete_leaves_the_original_untouched
+    with self.assertRaisesRegex(ValueError, 'not confirmed'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "not confirmed" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp0yggeh63/record)"
+
+======================================================================
+FAIL: test_failed_restore_is_reported_with_the_backups (test_device.DeviceTransferTests.test_failed_restore_is_reported_with_the_backups)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpb6015obc/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 269, in test_failed_restore_is_reported_with_the_backups
+    with self.assertRaisesRegex(ValueError, r'restore also failed.*copy /os.ldr back from .*before'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "restore also failed.*copy /os.ldr back from .*before" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpb6015obc/record)"
+
+======================================================================
+FAIL: test_failed_restore_of_a_new_file_says_to_delete_it (test_device.DeviceTransferTests.test_failed_restore_of_a_new_file_says_to_delete_it)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp1jojfko3/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 285, in test_failed_restore_of_a_new_file_says_to_delete_it
+    with self.assertRaisesRegex(ValueError, r'delete /content/display/mine.svg, which are new'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "delete /content/display/mine.svg, which are new" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp1jojfko3/record)"
+
+======================================================================
+FAIL: test_failed_write_restores_replaced_files (test_device.DeviceTransferTests.test_failed_write_restores_replaced_files)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpsw33tbay/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 196, in test_failed_write_restores_replaced_files
+    with self.assertRaisesRegex(ValueError, r'write failed; every file is as it was before this push \(new empty folders may remain: /content/display\)'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "write failed; every file is as it was before this push \(new empty folders may remain: /content/display\)" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpsw33tbay/record)"
+
+======================================================================
+FAIL: test_interrupt_ends_with_a_fail_line (test_device.DeviceTransferTests.test_interrupt_ends_with_a_fail_line)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 293, in test_interrupt_ends_with_a_fail_line
+    self.assertIn('FAIL: interrupted; every file is as it was before this push', err.getvalue())
+AssertionError: 'FAIL: interrupted; every file is as it was before this push' not found in 'FAIL: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpcjrw4g_1/record)\n'
+
+======================================================================
+FAIL: test_planning_failure_tells_the_user_nothing_was_written (test_device.DeviceTransferTests.test_planning_failure_tells_the_user_nothing_was_written)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 369, in test_planning_failure_tells_the_user_nothing_was_written
+    self.assertIn('FAIL: read failed; nothing was written to the device', err.getvalue())
+AssertionError: 'FAIL: read failed; nothing was written to the device' not found in 'FAIL: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmp6t4iulxj/record)\n'
+
+======================================================================
+FAIL: test_readback_mismatch_fails_and_rolls_back (test_device.DeviceTransferTests.test_readback_mismatch_fails_and_rolls_back)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpm3qn_1vh/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 210, in test_readback_mismatch_fails_and_rolls_back
+    with self.assertRaisesRegex(ValueError, 'Readback of os.ldr'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "Readback of os.ldr" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpm3qn_1vh/record)"
+
+======================================================================
+FAIL: test_record_folder_must_be_new (test_device.DeviceTransferTests.test_record_folder_must_be_new)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpjefhvmt_/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 228, in test_record_folder_must_be_new
+    with self.assertRaisesRegex(ValueError, 'already exists'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "already exists" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpjefhvmt_/record)"
+
+======================================================================
+FAIL: test_refuses_folder_in_place_of_file_and_file_in_place_of_folder (test_device.DeviceTransferTests.test_refuses_folder_in_place_of_file_and_file_in_place_of_folder)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpme9xu8pv/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 221, in test_refuses_folder_in_place_of_file_and_file_in_place_of_folder
+    with self.assertRaisesRegex(ValueError, 'is a folder'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "is a folder" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpme9xu8pv/record)"
+
+======================================================================
+FAIL: test_refuses_pending_firmware_update_before_writing (test_device.DeviceTransferTests.test_refuses_pending_firmware_update_before_writing)
+----------------------------------------------------------------------
+ValueError: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpc4r4vili/record)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 216, in test_refuses_pending_firmware_update_before_writing
+    with self.assertRaisesRegex(ValueError, 'firmware update'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "firmware update" does not match "Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpc4r4vili/record)"
+
+======================================================================
+FAIL: test_unchecked_interrupt_reports_partial_device_state (test_device.DeviceTransferTests.test_unchecked_interrupt_reports_partial_device_state)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_device.py", line 189, in test_unchecked_interrupt_reports_partial_device_state
+    self.assertIn('FAIL: interrupted; transfer incomplete', err.getvalue())
+AssertionError: 'FAIL: interrupted; transfer incomplete' not found in 'FAIL: Keep the transfer record outside every checkout: backups hold stock firmware (/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tmpia083xiz/record)\n'
+
+======================================================================
+FAIL: test_deployments_come_from_their_own_branch (test_release.Release.test_deployments_come_from_their_own_branch) (target='beta', branch='main')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_release.py", line 23, in test_deployments_come_from_their_own_branch
+    self.assertIn('from ' + release.TARGETS[target][0], error.getvalue())
+AssertionError: 'from staging' not found in 'FAIL: Keep --out outside every checkout: the kit holds firmware and stock content\n'
+
+======================================================================
+FAIL: test_deployments_come_from_their_own_branch (test_release.Release.test_deployments_come_from_their_own_branch) (target='production', branch='staging')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_release.py", line 23, in test_deployments_come_from_their_own_branch
+    self.assertIn('from ' + release.TARGETS[target][0], error.getvalue())
+AssertionError: 'from main' not found in 'FAIL: Keep --out outside every checkout: the kit holds firmware and stock content\n'
+
+======================================================================
+FAIL: test_deployments_come_from_their_own_branch (test_release.Release.test_deployments_come_from_their_own_branch) (target='beta', branch='sdk/feature')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/e8bf00b9c59f/deliverables/Morph_Gate35_Development/sdk/tests/test_release.py", line 23, in test_deployments_come_from_their_own_branch
+    self.assertIn('from ' + release.TARGETS[target][0], error.getvalue())
+AssertionError: 'from staging' not found in 'FAIL: Keep --out outside every checkout: the kit holds firmware and stock content\n'
+
+----------------------------------------------------------------------
+Ran 544 tests in 59.369s
+
+FAILED (failures=18, errors=15, skipped=37)
+FAIL: Command '['/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3', '-m', 'tooling.checks', '_suite']' returned non-zero exit status 1.

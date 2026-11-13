@@ -1,0 +1,1 @@
+See ../docs/KNOWN_ISSUES.md for current v1.0.0 limitations. Historical development records retained elsewhere in this directory are not the current issue list. The old REC-held scatter-recording issue was addressed by Gate32 movement-lane automation; existing affected projects are not automatically repaired.

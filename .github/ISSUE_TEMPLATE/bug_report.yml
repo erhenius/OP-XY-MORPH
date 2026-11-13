@@ -1,0 +1,28 @@
+name: Bug report
+description: Report a reproducible Morph issue
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Morph release and firmware profile
+      placeholder: v1.0.0 / Gate35, OP-XY 1.2.1
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Exact steps and button order
+      description: Include AUX/HUD, selected track, LIVE/BYPASS, recording, locks and LFO state.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Include screen/photo or relevant error text. Do not post firmware, private kits, credentials or personal projects.

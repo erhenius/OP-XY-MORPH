@@ -1,0 +1,438 @@
+--- a/machine/Built_definition.json
++++ b/machine/Built_definition.json
+@@ -70,7 +70,8 @@
+       "unique": true,
+       "aux": [
+         12
+-      ]
++      ],
++      "savedBytes": 5684
+     }
+   }
+ }
+--- a/machine/control.cpp
++++ b/machine/control.cpp
+@@ -2,6 +2,7 @@
+ #include <opxy/track_control.hpp>
+ #include <opxy/morph_aux_events.hpp>
+ #include <opxy/morph_store_bridge.hpp>
++#include "morph_automation.hpp"
+ #include "morph_logic.hpp" // exact V1 Q31 math, no 64-bit linker helper
+ #include <opxy/morph_hud_contract.hpp>
+ #include <opxy/morph_hud_snapshot.hpp>
+@@ -197,6 +198,24 @@
+ // authorized controller tick, after all stock scramble writes have finished.
+ static u32 scramble_pending=0u;
+ static bool startup_captured=false;
++static automation::Lane movement_lane={};
++static i32 recorded_origin[8][34]={};
++static bool recorded_reference=false, transport_playing=false;
++static opxy::morphport::ShiftSchema restored_schema[8]={};
++static u32 restored_patterns[10]={};
++static bool restored_pending=false;
++inline bool restore_context_matches() {
++ opxy::morphport::ShiftSchema schemas[8]={};u32 patterns[10]={};
++ if(!sdk_morph_persist_identity(schemas,patterns))return false;
++ for(u32 i=0;i<10u;++i)if(patterns[i]!=restored_patterns[i])return false;
++ for(u32 t=0;t<8u;++t){
++  const opxy::morphport::ShiftSchema& a=schemas[t];
++  const opxy::morphport::ShiftSchema& b=restored_schema[t];
++  if(a.engine!=b.engine || a.count!=b.count)return false;
++  for(u32 i=0;i<8u;++i)if(a.choices[i]!=b.choices[i] || a.defaults[i]!=b.defaults[i])return false;
++ }
++ return true;
++}
+ void hud_scramble_done(u32 track) {
+  if(track<kTracks && hud_source && sdk_morph_view_context_ok())scramble_pending|=1u<<track;
+ }
+@@ -333,7 +352,7 @@
+  return 219u;
+ }
+ void control_reset(ControlState& s) {
+- scramble_pending=0u;startup_captured=false;
++ scramble_pending=0u;startup_captured=false;restored_pending=false;recorded_reference=false;transport_playing=false;movement_lane.reset();
+  sdk_morph_gui_turns_reset();
+  aux_probe=0;
+  aux_diag_ticks=aux_diag_clicks=aux_diag_turns=0u;
+@@ -352,7 +371,7 @@
+  for(u32 side=0;side<2u;++side)for(u32 t=0;t<kTracks;++t)
+   for(u32 i=0;i<kParams;++i)s.scene[side][t][i]=0;
+  for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i){
+-  s.base[t][i]=0;s.origin[t][i]=0;
++  s.base[t][i]=0;s.origin[t][i]=0;recorded_origin[t][i]=0;
+  }
+  s.captured_mask[0]=s.captured_mask[1]=0u;
+  s.context_ready=0u;s.base_ready=0u;s.origin_ready=0u;
+@@ -374,12 +393,84 @@
+ }
+ inline bool capture_startup(ControlState& s) {
+  if(startup_captured)return true;
+- if(!context(s) || !read_all(candidate))return false;
+- for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i)
++ if(!context(s))return false;
++ if(restored_pending) {
++  restored_pending=false;
++  if(restore_context_matches()) {
++   startup_captured=true;s.mode=0u;s.travel=0;s.phase=idle;s.fault=0u;
++   return true;
++  }
++  recorded_reference=false;
++ }
++ if(!read_all(candidate))return false;
++ for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i){
+   s.scene[0][t][i]=s.scene[1][t][i]=s.base[t][i]=candidate[t][i];
++  s.origin[t][i]=0;recorded_origin[t][i]=0;
++ }
+  s.captured_mask[0]=s.captured_mask[1]=0xffu;s.base_ready=1u;
+  s.origin_ready=0u;s.mode=0u;s.travel=0;s.fault=0u;
+  startup_captured=true;return true;
++}
++const u32 kSavedBytes=5684u;
++inline void put32(opxy::u8* out,u32 value){for(u32 j=0;j<4u;++j)out[j]=static_cast<opxy::u8>(value>>(j*8u));}
++inline u32 get32(const opxy::u8* in){u32 value=0;for(u32 j=0;j<4u;++j)value|=static_cast<u32>(in[j])<<(j*8u);return value;}
++inline u32 saved_checksum(const opxy::u8* data,u32 count){u32 h=2166136261u;for(u32 i=0;i<count;++i)h=(h^data[i])*16777619u;return h;}
++u32 control_save(const ControlState& s,opxy::u8* data,u32 capacity) {
++ if(!data || capacity<kSavedBytes || !s.base_ready || !s.context_ready ||
++    !sdk_morph_view_context_ok())return 0;
++ opxy::morphport::ShiftSchema schema[8]={};u32 patterns[10]={};
++ if(!sdk_morph_persist_identity(schema,patterns))return 0;
++ put32(data,0x3233524du);put32(data+4,1u);put32(data+8,kSavedBytes);
++ put32(data+12,s.captured_mask[0]);put32(data+16,s.captured_mask[1]);
++ put32(data+20,s.base_ready);put32(data+24,s.origin_ready);put32(data+28,recorded_reference?1u:0u);
++ u32 at=32u;
++ for(u32 i=0;i<10u;++i){put32(data+at,patterns[i]);at+=4u;}
++ for(u32 t=0;t<8u;++t){
++  put32(data+at,schema[t].engine);at+=4u;data[at++]=schema[t].count;
++  for(u32 i=0;i<8u;++i)data[at++]=schema[t].choices[i];
++  for(u32 i=0;i<8u;++i)data[at++]=schema[t].defaults[i];
++ }
++ for(u32 bank=0;bank<5u;++bank)for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i){
++  const i32 v=bank<2?s.scene[bank][t][i]:bank==2?s.base[t][i]:bank==3?s.origin[t][i]:recorded_origin[t][i];
++  put32(data+at,static_cast<u32>(v));at+=4u;
++ }
++ if(at!=kSavedBytes-4u || !sdk_morph_view_context_ok())return 0;
++ put32(data+at,saved_checksum(data,at));return kSavedBytes;
++}
++void control_load(ControlState& s,const opxy::u8* data,u32 bytes) {
++ control_reset(s);
++ if(!data || bytes!=kSavedBytes || get32(data)!=0x3233524du || get32(data+4)!=1u ||
++    get32(data+8)!=bytes || get32(data+bytes-4u)!=saved_checksum(data,bytes-4u) ||
++    get32(data+12)>255u || get32(data+16)>255u || get32(data+20)!=1u ||
++    get32(data+24)>1u || get32(data+28)>1u)return;
++ // Validate complete payload before publishing any snapshot value.
++ const u32 values=240u;
++ for(u32 at=values;at<bytes-4u;at+=4u)if(get32(data+at)>0x7fffffffu)return;
++ u32 at=32u;
++ for(u32 i=0;i<10u;++i){restored_patterns[i]=get32(data+at);at+=4u;}
++ for(u32 t=0;t<8u;++t){
++  restored_schema[t].engine=get32(data+at);at+=4u;restored_schema[t].count=data[at++];
++  if(restored_schema[t].count>8u)return;
++  for(u32 i=0;i<8u;++i)restored_schema[t].choices[i]=data[at++];
++  for(u32 i=0;i<8u;++i)restored_schema[t].defaults[i]=data[at++];
++ }
++ for(u32 t=0;t<8u;++t)for(u32 i=0;i<8u;++i){
++  const u32 choices=restored_schema[t].choices[i];
++  const u32 top=choices>=2u?choices-1u:choices==1u?0u:100u;
++  if(choices>128u || restored_schema[t].defaults[i]>top)return;
++ }
++ for(u32 bank=0;bank<5u;++bank)for(u32 t=0;t<8u;++t)for(u32 i=26u;i<34u;++i){
++  const u32 entry=i-26u,choices=restored_schema[t].choices[entry];
++  const u32 top=entry>=restored_schema[t].count || choices==1u?0u:choices>=2u?choices-1u:100u;
++  const u32 offset=240u+4u*((bank*8u+t)*34u+i);
++  if(get32(data+offset)>top)return;
++ }
++ for(u32 bank=0;bank<5u;++bank)for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i){
++  const i32 v=static_cast<i32>(get32(data+at));at+=4u;
++  if(bank<2)s.scene[bank][t][i]=v;else if(bank==2)s.base[t][i]=v;else if(bank==3)s.origin[t][i]=v;else recorded_origin[t][i]=v;
++ }
++ s.captured_mask[0]=get32(data+12);s.captured_mask[1]=get32(data+16);
++ s.base_ready=1u;s.origin_ready=get32(data+24);recorded_reference=get32(data+28)!=0u;restored_pending=true;
+ }
+ inline bool capture(ControlState& s,u32 side) {
+  if(side>1u || !read_all(candidate))return false;
+@@ -451,12 +542,17 @@
+  return opxy::morph::interpolate(s.origin[t][i],s.scene[side][t][i],fraction);
+ }
+ inline void schedule(ControlState& s,bool bypass) {
++ if(bypass)movement_lane.bypass();
+  s.target_bypass=bypass?1u:0u;s.phase=sending;s.cursor=0u;s.fault=0u;
+ }
+ inline bool activate(ControlState& s) {
+  if(!captured(s))return false;
++ if(transport_playing && recorded_reference) {
++  for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i)s.origin[t][i]=recorded_origin[t][i];
++  s.origin_ready=1u;
++ }
+  if(!s.origin_ready && !origin_pickup(s))return false;
+- s.mode=1u;return true;
++ s.mode=1u;movement_lane.activate();movement_lane.primed=false;return true;
+ }
+ inline void submit_tick(ControlState& s) {
+  u32 accepted=0u;
+@@ -503,7 +599,11 @@
+ // visibly owns the focused instrument track.
+ inline bool hud_action(ControlState& s,const hud::Event& e,bool muted) {
+  if(!hud::event_valid(e) || muted || !sdk_morph_hud_frame_authorized(e.track))return false;
+- if(!context(s) || !sdk_morph_session_context_ok() || s.phase==failed)return false;
++ if(!context(s) || !sdk_morph_session_context_ok())return false;
++ if(s.phase==failed){
++  if(e.action==hud::LiveBypass && s.base_ready){schedule(s,true);return true;}
++  return false;
++ }
+  if(e.action==hud::ToggleEdit) {
+   s.edit_side^=1u;return true;
+  }
+@@ -568,6 +668,7 @@
+  }
+ }
+ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
++ transport_playing=in.transport.playing;
+  u32 clicks=0; i32 turns[4]={0,0,0,0};
+  sdk_morph_aux_events_take(in.track,&clicks,turns);
+  // Counts describe events CONSUMED by the actual controller.  They are not
+@@ -626,7 +727,7 @@
+    if((clicks&1u) && !capture(s,0u))s.fault=7u;
+    if((clicks&2u) && !capture(s,1u))s.fault=7u;
+    if(s.mode) schedule(s,true); // V1's capture-while-live restores S
+-  } else if((clicks&8u) && s.phase==failed && s.target_bypass) {
++  } else if((clicks&8u) && s.phase==failed) {
+    // Manual explicit retry, only for interrupted BASE restoration.
+    if(s.base_ready)schedule(s,true);
+   } else if((clicks&8u) && s.mode) {
+@@ -639,8 +740,26 @@
+    if(activate(s)) {
+     const i32 before=s.travel;
+     s.travel=clamped_travel(s.travel,turns[3]);
+-    if(before!=s.travel)schedule(s,false);
++    if(before!=s.travel) {
++     movement_lane.seen=automation::encode(s.travel);movement_lane.primed=true;
++     const bool submitted=sdk_morph_movement_record(automation::encode(s.travel));
++     if(submitted && !recorded_reference && sdk_morph_movement_has_locks()) {
++      for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i)recorded_origin[t][i]=s.origin[t][i];
++      recorded_reference=true;
++     }
++     schedule(s,false);
++    }
+    } else s.fault=10u;
++  }
++  i32 playback_travel=s.travel;
++  if(!turns[3] && s.mode && recorded_reference && movement_allowed(s) &&
++     sdk_morph_movement_has_locks() &&
++     movement_lane.observe(in.values[11u][3u],in.transport.playing,in.muted!=0u,playback_travel)) {
++   if(recorded_reference){
++    for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i)s.origin[t][i]=recorded_origin[t][i];
++    s.origin_ready=1u;
++   }
++   s.travel=playback_travel;schedule(s,false);
+   }
+   if(s.phase!=idle && s.phase!=failed && !in.muted) {
+    if(!sdk_morph_session_context_ok()){s.phase=failed;s.fault=11u;}
+--- a/machine/definition.json
++++ b/machine/definition.json
+@@ -70,7 +70,8 @@
+       "unique": true,
+       "aux": [
+         12
+-      ]
++      ],
++      "savedBytes": 5684
+     }
+   }
+ }
+--- a/machine/display.cpp
++++ b/machine/display.cpp
+@@ -79,7 +79,7 @@
+  const u32 meter= (ready && snap.mode ? 4u : 8u) |
+             ((bounded*100u/64u) << 8u) |
+             (travel<0 ? 16u : travel>0 ? 32u : 0u) |
+-            (ready && snap.fault ? 0x00040000u : 0u);
++            (ready && snap.fault ? 0x00040000u | ((snap.fault&255u)<<20u) : 0u);
+  morph_hud::render(frame,view,state,m3,m1,dual,secondary,meter,shifted,64u,4u,shifted && !m1);
+  // Keep the CV-only cover and diagnostics off the normal instrument HUD.
+  opxy::draw::hide(frame,7u);
+--- a/machine/machine.json
++++ b/machine/machine.json
+@@ -1,6 +1,6 @@
+ {
+   "schema": 1,
+-  "sdk": "1.9",
++  "sdk": "1.15",
+   "kind": "synth",
+-  "description": "NON-MUSICAL Morph AUX bridge compile canary. DO NOT INSTALL."
++  "description": "Morph Gate32 development: AUX A/B movement recording and snapshot persistence"
+ }
+--- a/machine/morph_automation.hpp
++++ b/machine/morph_automation.hpp
+@@ -0,0 +1,30 @@
++// Pure movement codec; native stock automation keeps a 16-bit parameter word.
++#pragma once
++#include <opxy/types.hpp>
++namespace morphcapture { namespace automation {
++using opxy::u32;using opxy::i32;
++// 129 positions with a stable 16-bit representation. Zero travel is Q31 0x40000000 (stored high half 0x4000).
++inline i32 encode(i32 travel) {
++ travel=travel< -64?-64:travel>64?64:travel;
++ return travel==64?0x7fffffff:(travel+64)*0x01000000;
++}
++inline i32 decode(i32 value) {
++ if(value<0)value=0;
++ const u32 rounded=(static_cast<u32>(value)+0x00800000u)>>24u;
++ return static_cast<i32>(rounded>128u?128u:rounded)-64;
++}
++struct Lane {
++ i32 seen;
++ bool primed,blocked,was_playing;
++ void reset(){seen=0;primed=false;blocked=true;was_playing=false;}
++ void bypass(){blocked=true;}
++ void activate(){blocked=false;}
++ bool observe(i32 value,bool playing,bool muted,i32& travel) {
++  const bool changed=!primed || value!=seen || (playing && !was_playing);
++  was_playing=playing;
++  seen=value;primed=true;
++  if(!playing || muted || blocked || !changed)return false;
++  travel=decode(value);return true;
++ }
++};
++}}
+--- a/machine/morph_hud.hpp
++++ b/machine/morph_hud.hpp
+@@ -166,7 +166,9 @@
+     (void)shift_stock_setter_index;
+     (void)shift_raw_knob;
+     (void)shift_chord;
+-    const char* warning=(morph_meter&0x000c0000u)==0x000c0000u ? "BASE INCOMPLETE" :
++    const unsigned fault=(morph_meter>>20u)&255u;
++    const char* warning=fault==3u?"READBACK FAILED":fault==4u?"CONTEXT RESET":
++        (fault==2u || fault==5u)?"WRITE REFUSED":fault?"MORPH FAULT":(morph_meter&0x000c0000u)==0x000c0000u ? "BASE INCOMPLETE" :
+         (morph_meter&0x00080000u) ? "BASE PARTIAL" :
+         (morph_meter&0x00040000u) ? "PARAM SKIPPED" : "";
+     if(*warning) place_text(frame,shift_diagnostic,240,13,warning);
+--- a/sdk/sdk/include/opxy/morph_store_bridge.hpp
++++ b/sdk/sdk/include/opxy/morph_store_bridge.hpp
+@@ -11,6 +11,7 @@
+  u8 count, choices[8], defaults[8];
+ };
+ struct Session {
++ u32 aux_block;
+  ShiftSchema shift[8];
+     u32 project;
+     u32 scene;
+@@ -60,3 +61,11 @@
+ // All-or-nothing GUI read of at most 26 supported slots; out unchanged on refusal.
+ extern "C" bool sdk_morph_view_current_batch(opxy::u32 track,const opxy::u32* indices,
+                                             opxy::u32 count,opxy::i32* out);
++
++// Explicit physical movement only: records the AUX lane, never destination writes.
++extern "C" bool sdk_morph_movement_record(opxy::i32 value);
++
++extern "C" bool sdk_morph_persist_identity(opxy::morphport::ShiftSchema* schemas,opxy::u32* patterns);
++
++
++extern "C" bool sdk_morph_movement_has_locks();
+--- a/sdk/sdk/platform/opxy-1.2.1/aux_tracks.cpp
++++ b/sdk/sdk/platform/opxy-1.2.1/aux_tracks.cpp
+@@ -577,6 +577,11 @@
+     if (!m || !event) return 0;
+     const u32 key = event[0];
+     if (key >= 6 && key <= 9) {
++        // Keys outside modules/encoders/tracks (e.g. BAR) retain stock chords.
++        // Do not steal BAR+M2 (clear params) or BAR+M4 (clear all).
++        for(u32 other=22u;morph_name(m->name) && other<50u;++other)
++            if(stock<u32(u32)>(0x8d5b7d7cu)(other))return 0;
++
+         if (key == 9 && m->shared_lfo) return 0;
+         if (key == 6) stock<void(u32, u32)>(0x8c08f74c)(controller, 0);
+         sdk_synth_queue_page_key(track, key - 5);
+--- a/sdk/sdk/platform/opxy-1.2.1/track_control.cpp
++++ b/sdk/sdk/platform/opxy-1.2.1/track_control.cpp
+@@ -251,7 +251,7 @@
+ bool morph_check(const opxy::morphport::Session& session) {
+     if(!session.active || word(kProjectLoading) || !morph_unique_owner())return false;
+     const u32 p=word(0x840a0524);
+-    if(!p)return false;
++    if(!p || stock<u32(u32)>(0x8d587708)(kMorphHost)!=session.aux_block)return false;
+     u32 blocks[control::tracks];morph_blocks(blocks);
+     for(u32 t=0;t<8;++t)if(!morph_schema_same(session.shift[t],morph_schema(t)))return false;
+     return session.matches(p,byte(p+6u),blocks);
+@@ -285,7 +285,6 @@
+         if(host==kMorphHost && morph_unique_owner()) {
+             if(i>=control::store_capacity || !morph_pending[i].accepted ||
+                !morph_check(morph_session) || muted(kMorphHost) ||
+-               lock_holds(e.track,e.index) ||
+                stock<u32(u32)>(0x8d587708)(e.track)!=morph_pending[i].block ||
+                base(e.track,e.index)!=morph_pending[i].current) {
+                 morph_reject();
+@@ -303,7 +302,8 @@
+             continue;
+         }
+         if (lock_holds(e.track, e.index)) continue;
+-        param_set(kProject, e.track, e.index, value);
++        if(host==kMorphHost && morph_unique_owner())live_set(e.track,e.index,value);
++        else param_set(kProject,e.track,e.index,value);
+         opxy::platform::control_stock_set(e.track, e.index, value);
+     }
+ }
+@@ -401,6 +401,38 @@
+ }
+ 
+ // Private Morph stored-current bridge: not general SDK APIs.
++extern "C" bool sdk_morph_persist_identity(opxy::morphport::ShiftSchema* schemas,u32* patterns) {
++    if(!schemas || !patterns || word(kProjectLoading) || !morph_unique_owner())return false;
++    const u32 project=word(0x840a0524);if(!project)return false;
++    patterns[0]=byte(project+6u);
++    for(u32 t=0;t<9u;++t) {
++        const u32 track=t<8u?t:kMorphHost;
++        const u32 block=stock<u32(u32)>(0x8d587708)(track);
++        if(!block)return false;
++        // Pattern index relative to the project's own track; no addresses saved.
++        patterns[t+1]=(block-(project+0xd7cu+track*0x53f44u))/0x53f4u;
++        if(t<8u)schemas[t]=morph_schema(t);
++    }
++    return project==word(0x840a0524) && !word(kProjectLoading);
++}
++extern "C" bool sdk_morph_movement_has_locks() {
++    if(!morph_live_context() || !morph_check(morph_session))return false;
++    const u32 block=stock<u32(u32)>(0x8d587708)(kMorphHost);
++    if(!block)return false;
++    // Same per-step mask layout as aux_tracks.cpp first_step_value.
++    for(u32 step=0;step<128u;++step)
++        if(word(block+0x2c58u+step*8u)&(1u<<3u))return true;
++    return false;
++}
++extern "C" bool sdk_morph_movement_record(i32 value) {
++    if(!morph_live_context() || muted(kMorphHost) || value<0 ||
++       byte(kSelectedTrack)!=kMorphHost || !morph_check(morph_session))return false;
++    const u32 block=stock<u32(u32)>(0x8d587708)(kMorphHost);
++    if(!block)return false;
++    *at<i32>(block+0x3864u+12u)=value;
++    param_set(kProject,kMorphHost,3u,value);
++    return true;
++}
+ extern "C" bool sdk_morph_stored_current_read(u32 track,u32 index,i32* out) {
+     if(!morph_live_context() || muted(kMorphHost) || !out ||
+        track>=control::tracks || !opxy::morphport::supported(index))return false;
+@@ -424,7 +456,7 @@
+ extern "C" bool sdk_morph_stored_once_submit(u32 track,u32 index,i32 value) {
+     if(!morph_live_context() || muted(kMorphHost) || !morph_check(morph_session) ||
+        track>=control::tracks || !opxy::morphport::supported(index) ||
+-       value<0 || lock_holds(track,index) ||
++       value<0 ||
+        !morph_overlay || morph_overlay->stored_count>=control::store_capacity)return false;
+     if(index>=64u) {
+         namespace row=opxy::platform::synth_shift;
+@@ -468,6 +500,7 @@
+     u32 blocks[control::tracks];morph_blocks(blocks);
+     for(u32 t=0;t<control::tracks;++t)if(!blocks[t])return false;
+     morph_schema_capture(morph_session);
++    morph_session.aux_block=stock<u32(u32)>(0x8d587708)(kMorphHost);
+     morph_session.begin(project,byte(project+6u),blocks);
+     return morph_check(morph_session);
+ }
+@@ -511,6 +544,7 @@
+     u32 blocks[control::tracks];morph_blocks(blocks);
+     for(u32 t=0;t<control::tracks;++t)if(!blocks[t])return false;
+     morph_schema_capture(morph_setbase);
++    morph_setbase.aux_block=stock<u32(u32)>(0x8d587708)(kMorphHost);
+     morph_setbase.begin(project,byte(project+6u),blocks);
+     morph_setbase_skips=0u;
+     return morph_check(morph_setbase);

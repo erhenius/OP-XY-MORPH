@@ -1,0 +1,1 @@
+Gate34 / Preview 8 remains unchanged as rollback: XY_Machine_Manager_Preview8_Morph_Gate34_AUX_LFO_Development_Mac.zip. Retain its successful job and matching kit/layout/provenance. Gate35 retains its control/save formats. No old source package or project was modified.

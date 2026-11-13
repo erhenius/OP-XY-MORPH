@@ -1,0 +1,9 @@
+# Preview 1 validation — 2026-11-12
+
+Actual supplied-kit integration: original 41-machine firmware reconstructs exactly; adding Papas Rapa and Hurdy Gurdy preserves installed IDs, links within 4 MiB and recovers exact stock with the complete 43-machine selection. Duplicate and already-installed selections refused. Uses precompiled authenticated reference objects, not a new native compilation.
+
+25 focused Python tests: safe import paths/symlinks/ZIPs, isolated folder snapshots, SDK metadata discovery, multiple roots, offline catalog, cancellation guards, candidate tampering, and original authenticated runtime fallback. Morph regression: 1502 actual controller/SDK boundary checks plus M1 and route tests pass. Run these scripts directly, not via unittest discovery: test_boundary.py, test_m1.py, test_route_parity.py. Run Python units with python3 -m unittest test_imports test_manager test_runtime_fallback.
+
+Live official catalog endpoint responded with schema 1 and 86 machines. Not yet verified: refresh through the desktop UI; native combined source rebuild; macOS GUI and cancellation behavior; live MTP baseline/staging; imports of every machine kind; mixed extensions (explicitly unsupported); already-installed Morph plus additions; metadata portability across computers; full SDK check. Original tests under historical/ describe previous Morph app versions, not generic coverage.
+
+Hardware acceptance: back up current firmware; scan exact known setup, add one small machine, compile, review IDs/resources/bytes, stage using SDK, WRITE OS/reboot, test existing machines and Morph and new machine. Then scan again with the retained job and add another machine; confirm no old IDs change. Test refusing stale device/candidate and insufficient space before wider distribution. CPU load is unmeasured.

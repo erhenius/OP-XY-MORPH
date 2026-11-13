@@ -1,0 +1,830 @@
+// Morph controller: GUI-thread scene capture, guarded transactions and HUD input.
+#include <opxy/track_control.hpp>
+#include <opxy/morph_aux_events.hpp>
+#include <opxy/morph_store_bridge.hpp>
+#include "morph_automation.hpp"
+#include "morph_logic.hpp" // exact V1 Q31 math, no 64-bit linker helper
+#include <opxy/morph_hud_contract.hpp>
+#include <opxy/morph_hud_snapshot.hpp>
+#include <opxy/morph_hud_slot_map.hpp>
+#include <opxy/morph_hud_overlay.hpp>
+#include "morph_hud_shift_actions.hpp"
+
+// Gate 7S: closed-by-default compositor witness, plain POD in this object.
+// The v0.0.6 machine source validator forbids conditional compilation.
+// The compositor grants input ownership only for the selected Morph frame.
+// The only native input witness comes from the compositor's actual route.
+// POD-only globals: no static constructors on the stock Blackfin loader.
+static bool hud_gesture_allowed();
+static opxy::u32 hud_frame_authorized_track=0xffffffffu;
+extern "C" opxy::u32 sdk_morph_hud_frame_authorized(opxy::u32 track) {
+ return track<8u && track==hud_frame_authorized_track &&
+        sdk_morph_gui_track()==track && sdk_morph_gui_ready() &&
+        !sdk_morph_other_track_held(track) && hud_gesture_allowed() && sdk_morph_view_context_ok()?1u:0u;
+}
+
+namespace morphcapture {
+using opxy::u32; using opxy::i32;
+namespace ctrl=opxy::control;
+
+const u32 kTracks=8u, kParams=34u, kFull=64u;
+const u32 slots[kParams]={0u,1u,2u,3u,4u,5u,6u,7u,8u,9u,10u,11u,
+ 13u,15u,16u,17u,18u,19u,20u,21u,22u,23u,32u,33u,34u,35u,64u,65u,66u,67u,68u,69u,70u,71u};
+static_assert(kParams*kTracks==272u,"unexpected V1 scene width");
+const u32 idle=0u, sending=1u, verify_first=2u, verify_second=3u, failed=4u;
+
+struct ControlState {
+ i32 scene[2][kTracks][kParams];
+ i32 base[kTracks][kParams];       // S: independent, frozen, never mid-point derived
+ i32 origin[kTracks][kParams];     // CURRENT at start of each movement session
+ u32 captured_mask[2];
+ u32 context_ready;
+ u32 base_ready;
+ u32 origin_ready;
+ u32 mode;                    // 0 BYPASS, 1 LIVE
+ i32 travel;                 // -64=A, 0=origin, +64=B
+ u32 edit_side;               // 0=A 1=B
+ u32 phase;
+ u32 cursor;
+ u32 target_bypass;          // where the current send/verify sequence is headed
+ u32 fault;                  // last refusal, lost context or readback mismatch
+ u32 active_tracks;           // write participation only; capture remains all-track
+ u32 last_feedback;
+};
+// Gate 8: GUI-owned pointer into the unique controller state. No duplicate
+// 8-track arrays; pointers are invalidated on every reset or lost context.
+static const ControlState* hud_source=0;
+// CV-only diagnostic witness.  No extra scene cache and no music-write path.
+// Counts are bounded and reset on controller reset.  This does NOT claim
+// stock encoder delivery until actual device events move the counters.
+static const ControlState* aux_probe=0;
+static u32 aux_page=1u,route_bank=0u;
+static bool lfo_was_active=false;
+static u32 aux_diag_ticks=0u,aux_diag_clicks=0u,aux_diag_turns=0u;
+
+struct HudLatch { u32 primed, track, last_tempo, last_instrument, enabled; };
+static HudLatch hud_latch={};
+static u32 hud_track_seen_unshifted=0u,hud_track_first_shift=0u; // zero-initialized, not a C++ object constructor
+// Extra GUI-only edit state does not duplicate A/B/S controller snapshots.
+struct HudTurnInput {
+ i32 steps[4]; u32 k4_held,track,bank,module,shifted;
+ u32 indices[4]; // resolved once on offer, never remapped after a later click
+};
+static HudTurnInput hud_turn_input={};
+static u32 hud_bank_focus=0u;
+struct HudPhysical {
+ morph_hud_shift_actions::Router chord;
+ u32 raw_previous, capture_previous, capture_primed, track_before_shift;
+ u32 shifted_suppressed;
+};
+static HudPhysical hud_physical={}; // plain POD, zero-initialized (no .ctors)
+extern "C" bool sdk_morph_hud_physical_press(u32 encoder);
+// Convert an actual saved-stock slot into this controller's 26-slot index.
+inline u32 morph_scene_index(u32 physical_slot) {
+ for(u32 i=0u;i<kParams;++i)if(slots[i]==physical_slot)return i;
+ return 26u;
+}
+extern "C" bool sdk_morph_hud_raw_turn(u32 track,u32 encoder,i32 detents,u32 k4held) {
+ if(track>=8u || encoder>=4u || detents==0 || detents>4 || detents< -4 ||
+    !sdk_morph_hud_frame_authorized(track))return false;
+ const u32 module=sdk_morph_gui_module();
+ if(module>2u)return false;
+ const u32 shifted=sdk_morph_gui_shift_held()?1u:0u;
+ const u32 held=!shifted && k4held?1u:0u;
+ // Held K4 exclusively sweeps. Discard other simultaneous raw edits.
+ if(held && encoder!=3u)return false;
+ u32 index=26u;
+ if(!held) {
+  u32 original=0xffffffffu;
+  if(shifted) {
+   if(module==0u)return false; // V1 M1 SHIFT fine aliases are read-only.
+   if(module==1u) {
+    if(encoder!=1u && encoder!=3u)return false;
+    original=encoder==1u?13u:15u;
+   } else original=20u+encoder;
+  } else if(module==0u) {
+   morph_m1::Map map={};
+   if(!sdk_morph_hud_m1_map(track,&map) ||
+      !morph_m1::supported_for_edit(map,encoder,original))return false;
+  } else if(module==1u)original=(hud_bank_focus?32u:8u)+encoder;
+  else original=16u+encoder;
+  index=morph_scene_index(original);
+  if(index>=26u)return false;
+ }
+ const bool pending=hud_turn_input.steps[0] || hud_turn_input.steps[1] ||
+    hud_turn_input.steps[2] || hud_turn_input.steps[3];
+ if(pending && (hud_turn_input.track!=track || hud_turn_input.k4_held!=held ||
+    hud_turn_input.module!=module || hud_turn_input.shifted!=shifted || (module==1u && hud_turn_input.bank!=hud_bank_focus)))return false;
+ if(pending && hud_turn_input.steps[encoder] && hud_turn_input.indices[encoder]!=index)return false;
+ hud_turn_input.track=track;hud_turn_input.k4_held=held;
+ hud_turn_input.bank=hud_bank_focus;hud_turn_input.module=module;hud_turn_input.shifted=shifted;
+ hud_turn_input.indices[encoder]=index;
+ i32& queued=hud_turn_input.steps[encoder];
+ if(queued+detents>4 || queued+detents< -4)return false;
+ queued+=detents;return true;
+}
+extern "C" bool sdk_morph_hud_suppress_stock_turn(u32 track) {
+ return track<8u && sdk_morph_hud_frame_authorized(track)!=0u;
+}
+inline HudTurnInput take_hud_turn_input() {
+ const HudTurnInput result=hud_turn_input;hud_turn_input=HudTurnInput{};return result;
+}
+void hud_physical_observe(bool visible,u32 track);
+
+inline void hud_latch_reset() {
+ hud_latch=HudLatch{};
+ hud_frame_authorized_track=0xffffffffu;
+}
+// Called by SDK only *after* compositor ScreenOrder has selected the registered
+// page. This does not post a single HUD command in Gate 10.
+extern "C" void sdk_morph_hud_compositor_witness(u32 page,u32 track) {
+ hud_frame_authorized_track=(page==219u && track<8u && hud_source &&
+     sdk_morph_view_context_ok() && sdk_morph_gui_ready() &&
+     sdk_morph_gui_track()==track && !sdk_morph_other_track_held(track) &&
+     hud_gesture_allowed())?track:0xffffffffu;
+ hud_physical_observe(hud_frame_authorized_track==track && track<8u,track);
+}
+
+// The external HUD renderer reads an atomic-by-copy track snapshot. It can
+// never call this on the audio thread or manufacture authorization for input.
+extern "C" bool sdk_morph_hud_snapshot_read(u32 track,hud::Snapshot* out) {
+ if(track==11u) {
+  if(!out || !aux_probe)return false;
+  hud::Snapshot diagnostic={};
+  diagnostic.abi=hud::kSnapshotABI;
+  diagnostic.track=11u;
+  diagnostic.captured_a=aux_probe->captured_mask[0];
+  diagnostic.captured_b=aux_probe->captured_mask[1];
+  diagnostic.start_ready=aux_probe->base_ready;
+  diagnostic.edit_side=aux_probe->edit_side;
+  diagnostic.mode=aux_probe->mode;
+  diagnostic.travel=aux_probe->travel;
+  diagnostic.phase=aux_probe->phase;
+  diagnostic.fault=aux_probe->fault;
+  diagnostic.current[0]=static_cast<i32>(aux_diag_ticks);
+  diagnostic.current[1]=static_cast<i32>(aux_diag_clicks);
+  diagnostic.current[2]=static_cast<i32>(aux_diag_turns);
+  diagnostic.current[3]=aux_probe->context_ready?1:0;
+  for(u32 i=0;i<3u;++i)diagnostic.current[4u+i]=static_cast<i32>(sdk_morph_gui_route_trace(i));
+  *out=diagnostic;
+  return true;
+ }
+ if(!out || track>=kTracks || !hud_source || !hud_source->context_ready ||
+    !sdk_morph_view_context_ok())return false;
+ const ControlState& s=*hud_source;
+ hud::Snapshot value={};
+ value.abi=hud::kSnapshotABI;value.track=track;
+ value.captured_a=(s.captured_mask[0]>>track)&1u;
+ value.captured_b=(s.captured_mask[1]>>track)&1u;
+ value.start_ready=s.base_ready;
+ value.edit_side=s.edit_side;
+ value.module=sdk_morph_gui_module();
+ morph_m1::clear(value.m1);
+ if(value.module==0u)(void)sdk_morph_hud_m1_map(track,&value.m1);
+ value.shifted=(sdk_morph_gui_shift_held() && hud_gesture_allowed())?1u:0u;
+ value.bank_focus=hud_bank_focus;
+ value.mode=s.mode;
+ value.travel=s.travel;
+ value.phase=s.phase;value.fault=s.fault;
+ for(u32 i=0;i<26u;++i){
+  value.a[i]=s.scene[0][track][i];
+  value.b[i]=s.scene[1][track][i];
+  value.s[i]=s.base[track][i];
+ }
+ // One guarded read of all CURRENT values; no partial snapshot publication.
+ if(!sdk_morph_view_current_batch(track,slots,26u,value.current))return false;
+ if(!sdk_morph_view_context_ok())return false;
+ *out=value;
+ return true;
+}
+// Scramble notifications only queue a track mask; snapshot mutation is on the
+// authorized controller tick, after all stock scramble writes have finished.
+static u32 scramble_pending=0u;
+static bool startup_captured=false;
+static automation::Lane movement_lane={};
+static i32 recorded_origin[8][34]={};
+static bool recorded_reference=false, transport_playing=false;
+static opxy::morphport::ShiftSchema restored_schema[8]={};
+static u32 restored_patterns[10]={};
+static bool restored_pending=false;
+inline bool restore_context_matches() {
+ opxy::morphport::ShiftSchema schemas[8]={};u32 patterns[10]={};
+ if(!sdk_morph_persist_identity(schemas,patterns))return false;
+ for(u32 i=0;i<10u;++i)if(patterns[i]!=restored_patterns[i])return false;
+ for(u32 t=0;t<8u;++t){
+  const opxy::morphport::ShiftSchema& a=schemas[t];
+  const opxy::morphport::ShiftSchema& b=restored_schema[t];
+  if(a.engine!=b.engine || a.count!=b.count)return false;
+  for(u32 i=0;i<8u;++i)if(a.choices[i]!=b.choices[i] || a.defaults[i]!=b.defaults[i])return false;
+ }
+ return true;
+}
+void hud_scramble_done(u32 track) {
+ if(track<kTracks && hud_source && sdk_morph_view_context_ok())scramble_pending|=1u<<track;
+}
+// Shared candidate scratch, safe because the owner is unique; static POD only.
+static i32 candidate[kTracks][kParams];
+static_assert(sizeof(ControlState)%4u==0u,"state alignment");
+// C-ABI mailbox: producer and consumer run on stock's GUI thread. There is no
+// background polling or dynamic constructor. At most one authorized gesture
+// may be pending; a second offer is refused rather than overwriting it.
+static hud::Event hud_pending={};
+extern "C" bool sdk_morph_hud_event_offer(u32 action,u32 track) {
+ const hud::Event e={action,track};
+ if(!hud::event_valid(e) || hud_pending.action)return false;
+ hud_pending=e;
+ return true;
+}
+inline hud::Event take_hud_event() {
+ const hud::Event result=hud_pending;
+ hud_pending.action=0u;hud_pending.track=0u;
+ return result;
+}
+
+// Physical SHIFT routes are sampled once per *actually selected* HUD frame.
+// Synth encoder clicks take a separate SDK dispatch path; do not reinterpret
+// a held physical encoder as a stock click. GUI-side, no audio polling.
+void hud_physical_observe(bool visible,u32 track) {
+ const bool shift=sdk_morph_gui_shift_held()!=0u;
+ u32 raw=0u;
+ for(u32 i=0;i<4u;++i)if(sdk_morph_gui_encoder_down(i))raw|=(1u<<i);
+ const u32 caps=raw&3u,ends=(raw>>2u)&3u;
+ const bool track_held=sdk_morph_track_held(track)!=0u;
+ if(!visible) {
+  hud_physical.track_before_shift=0u;
+  hud_physical.capture_primed=0u;
+  hud_physical.chord.observe(false,shift,ends);
+  hud_physical.capture_previous=caps;
+  hud_physical.raw_previous=raw;
+  return;
+ }
+ if(!shift) {
+  // A genuinely new non-SHIFT physical press clears only its own tombstone.
+  hud_physical.shifted_suppressed &= ~(caps & ~hud_physical.raw_previous);
+  hud_physical.track_before_shift=(track_held || hud_latch.enabled)?1u:0u;
+  hud_physical.capture_primed=0u;
+  hud_physical.chord.observe(false,false,ends);
+  hud_physical.capture_previous=caps;
+  hud_physical.raw_previous=raw;
+  return;
+ }
+ const bool shift_allowed=hud_physical.track_before_shift!=0u &&
+       (track_held || hud_latch.enabled);
+ hud_physical.chord.observe(shift_allowed,true,ends);
+ const u32 endpoint=hud_physical.chord.take(shift_allowed);
+ if(endpoint) {
+  const u32 action=endpoint==morph_hud_shift_actions::Router::A?hud::JumpA:
+      endpoint==morph_hud_shift_actions::Router::B?hud::JumpB:hud::LiveBypass;
+  (void)sdk_morph_hud_event_offer(action,track);
+ }
+ if(!shift_allowed) {
+  hud_physical.capture_primed=0u;
+  hud_physical.capture_previous=caps;
+  hud_physical.raw_previous=raw;
+  return;
+ }
+ // Ignore any K1/K2 already down on the first qualified SHIFT frame.
+ if(hud_physical.capture_primed) {
+  const u32 rise=caps & ~hud_physical.capture_previous;
+  if(rise&1u)(void)sdk_morph_hud_event_offer(hud::CaptureTrackA,track);
+  else if(rise&2u)(void)sdk_morph_hud_event_offer(hud::CaptureTrackB,track);
+ } else hud_physical.capture_primed=1u;
+ hud_physical.shifted_suppressed|=caps;
+ hud_physical.capture_previous=caps;
+ hud_physical.raw_previous=raw;
+}
+extern "C" bool sdk_morph_hud_physical_press(u32 encoder) {
+ if(encoder>=4u)return false;
+ const u32 track=sdk_morph_gui_track();
+ if(track>=8u || !sdk_morph_hud_frame_authorized(track))return false;
+ const bool shift=sdk_morph_gui_shift_held()!=0u;
+ if(encoder>=2u && hud_physical.chord.swallow_late_click(encoder,shift))
+   return true; // no delayed SHIFT K3/K4 SET S or BYPASS
+ if(encoder<2u && (hud_physical.shifted_suppressed & (1u<<encoder))) {
+   hud_physical.shifted_suppressed &= ~(1u<<encoder);
+   return true;
+ }
+ if(shift) return true; // never re-interpret a shifted click as ordinary action
+ // Even if the one-shot mailbox is busy, consume the GUI click rather than
+ // allowing it to fall through into stock parameter editing.
+ if(encoder==0u) {
+  // A bank change cannot reinterpret turns sampled before the click.
+  sdk_morph_gui_turns_reset();hud_turn_input=HudTurnInput{};
+  const u32 module=sdk_morph_gui_module();
+  if(module==1u)hud_bank_focus^=1u;
+  else if(module==0u)(void)sdk_morph_hud_m1_toggle(track);
+  return true;
+ }
+ if(encoder==1u) { (void)sdk_morph_hud_event_offer(hud::ToggleEdit,track);return true; }
+ if(encoder==2u) { (void)sdk_morph_hud_event_offer(hud::SetS,track);return true; }
+ if(encoder==3u) { (void)sdk_morph_hud_event_offer(hud::LiveBypass,track);return true; }
+ return false; // unshifted K1 retains stock bank/navigation behavior
+}
+
+// READ-ONLY screen substitution. Does not call hud_event_offer and never
+// changes the closed input-authorization witness. Only the compositor can
+// choose a page after verifying it is installed in the registered page table.
+opxy::u32 hud_readonly_screen_route(opxy::u32 selected_page) {
+ const u32 track=sdk_morph_gui_track();
+ if(track>=8u || !hud_source || !sdk_morph_view_context_ok() ||
+    !sdk_morph_gui_ready() || sdk_morph_other_track_held(track)) {
+    hud_latch_reset();hud_track_seen_unshifted=hud_track_first_shift=0u;return 0u;
+ }
+ const bool shift=sdk_morph_gui_shift_held()!=0u;
+ const bool held=sdk_morph_track_held(track)!=0u;
+ const u32 tempo=sdk_morph_gui_key_down(1u)!=0u;
+ const u32 instrument=sdk_morph_gui_key_down(2u)!=0u;
+ if(!hud_latch.primed || hud_latch.track!=track) {
+    // V1 latch follows track selection; queued motion and chord history do not.
+    hud_frame_authorized_track=0xffffffffu;hud_turn_input=HudTurnInput{};hud_bank_focus=0u;
+    hud_track_seen_unshifted=hud_track_first_shift=0u;
+    hud_latch.primed=1u;hud_latch.track=track;
+ }
+ if(instrument && !hud_latch.last_instrument)hud_latch.enabled=0u;
+ // V1's global SHIFT+TEMPO latch does not require a held track or an old frame grant.
+ if(tempo && !hud_latch.last_tempo && shift) {
+    hud_latch.enabled^=1u;hud_turn_input=HudTurnInput{};sdk_morph_gui_turns_reset();
+ }
+ hud_latch.last_tempo=tempo;hud_latch.last_instrument=instrument;
+ if(!held)hud_track_seen_unshifted=hud_track_first_shift=0u;
+ else if(!shift){hud_track_seen_unshifted=1u;hud_track_first_shift=0u;}
+ else if(hud_track_seen_unshifted)hud_track_first_shift=1u;
+ // SHIFT-first track gestures remain stock-owned even while latch is enabled.
+ if(selected_page==0u || selected_page==219u || instrument ||
+    !hud_gesture_allowed())return 0u;
+ return 219u;
+}
+void control_reset(ControlState& s) {
+ aux_page=1u;route_bank=0u;lfo_was_active=false;s.active_tracks=255u;
+ scramble_pending=0u;startup_captured=false;restored_pending=false;recorded_reference=false;transport_playing=false;movement_lane.reset();
+ sdk_morph_gui_turns_reset();
+ aux_probe=0;
+ aux_diag_ticks=aux_diag_clicks=aux_diag_turns=0u;
+
+ hud_source=0; // no stale display state across machine/project changes
+ sdk_morph_hud_substitute=0; // no stale screen routing across resets
+ sdk_morph_hud_frame_witness=0; // no stale compositor callbacks across resets
+ (void)take_hud_event(); // stale gestures never survive context resets
+ hud_track_seen_unshifted=hud_track_first_shift=0u;
+ hud_latch_reset(); // reset both latch and stale visible authorization
+ hud_physical=HudPhysical{};hud_turn_input=HudTurnInput{};hud_bank_focus=0u;
+ sdk_morph_hud_press_route=0;
+ sdk_morph_hud_turn_suppress=0; sdk_morph_hud_raw_turn_route=0;
+ sdk_morph_session_context_end();
+ sdk_morph_setbase_context_end();
+ for(u32 side=0;side<2u;++side)for(u32 t=0;t<kTracks;++t)
+  for(u32 i=0;i<kParams;++i)s.scene[side][t][i]=0;
+ for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i){
+  s.base[t][i]=0;s.origin[t][i]=0;recorded_origin[t][i]=0;
+ }
+ s.captured_mask[0]=s.captured_mask[1]=0u;
+ s.context_ready=0u;s.base_ready=0u;s.origin_ready=0u;
+ s.mode=0u;s.travel=0;s.edit_side=0u;s.phase=idle;s.cursor=0u;
+ s.target_bypass=0u;s.fault=0u;s.last_feedback=0u;
+}
+
+inline bool context(ControlState& s) {
+ if(s.context_ready)return sdk_morph_session_context_ok();
+ if(!sdk_morph_session_context_begin())return false;
+ s.context_ready=1u;
+ return true;
+}
+inline bool read_all(i32 (&into)[kTracks][kParams]) {
+ // All-or-nothing preflight: never partly replace a scene or S on a failed read.
+ for(u32 t=0;t<kTracks;++t)
+  if(!sdk_morph_stored_batch_read(t,slots,kParams,into[t]))return false;
+ return sdk_morph_session_context_ok();
+}
+inline bool capture_startup(ControlState& s) {
+ if(startup_captured)return true;
+ if(!context(s))return false;
+ if(restored_pending) {
+  restored_pending=false;
+  if(restore_context_matches()) {
+   startup_captured=true;s.mode=0u;s.travel=0;s.phase=idle;s.fault=0u;
+   return true;
+  }
+  recorded_reference=false;
+ }
+ if(!read_all(candidate))return false;
+ for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i){
+  s.scene[0][t][i]=s.scene[1][t][i]=s.base[t][i]=candidate[t][i];
+  s.origin[t][i]=0;recorded_origin[t][i]=0;
+ }
+ s.captured_mask[0]=s.captured_mask[1]=0xffu;s.base_ready=1u;
+ s.origin_ready=0u;s.mode=0u;s.travel=0;s.fault=0u;
+ startup_captured=true;return true;
+}
+const u32 kSavedBytes=5684u;
+inline void put32(opxy::u8* out,u32 value){for(u32 j=0;j<4u;++j)out[j]=static_cast<opxy::u8>(value>>(j*8u));}
+inline u32 get32(const opxy::u8* in){u32 value=0;for(u32 j=0;j<4u;++j)value|=static_cast<u32>(in[j])<<(j*8u);return value;}
+inline u32 saved_checksum(const opxy::u8* data,u32 count){u32 h=2166136261u;for(u32 i=0;i<count;++i)h=(h^data[i])*16777619u;return h;}
+u32 control_save(const ControlState& s,opxy::u8* data,u32 capacity) {
+ if(!data || capacity<kSavedBytes || !s.base_ready || !s.context_ready ||
+    !sdk_morph_view_context_ok())return 0;
+ opxy::morphport::ShiftSchema schema[8]={};u32 patterns[10]={};
+ if(!sdk_morph_persist_identity(schema,patterns))return 0;
+ put32(data,0x3233524du);put32(data+4,2u);put32(data+8,kSavedBytes);
+ put32(data+12,s.captured_mask[0]);put32(data+16,s.captured_mask[1]);
+ put32(data+20,s.base_ready);put32(data+24,s.origin_ready);put32(data+28,(recorded_reference?1u:0u)|(s.active_tracks<<8u));
+ u32 at=32u;
+ for(u32 i=0;i<10u;++i){put32(data+at,patterns[i]);at+=4u;}
+ for(u32 t=0;t<8u;++t){
+  put32(data+at,schema[t].engine);at+=4u;data[at++]=schema[t].count;
+  for(u32 i=0;i<8u;++i)data[at++]=schema[t].choices[i];
+  for(u32 i=0;i<8u;++i)data[at++]=schema[t].defaults[i];
+ }
+ for(u32 bank=0;bank<5u;++bank)for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i){
+  const i32 v=bank<2?s.scene[bank][t][i]:bank==2?s.base[t][i]:bank==3?s.origin[t][i]:recorded_origin[t][i];
+  put32(data+at,static_cast<u32>(v));at+=4u;
+ }
+ if(at!=kSavedBytes-4u || !sdk_morph_view_context_ok())return 0;
+ put32(data+at,saved_checksum(data,at));return kSavedBytes;
+}
+void control_load(ControlState& s,const opxy::u8* data,u32 bytes) {
+ control_reset(s);
+ if(!data || bytes!=kSavedBytes || get32(data)!=0x3233524du || (get32(data+4)!=1u && get32(data+4)!=2u) ||
+    get32(data+8)!=bytes || get32(data+bytes-4u)!=saved_checksum(data,bytes-4u) ||
+    get32(data+12)>255u || get32(data+16)>255u || get32(data+20)!=1u ||
+    get32(data+24)>1u ||
+    (get32(data+28)&(get32(data+4)==1u?~1u:~0xff01u)))return;
+ // Validate complete payload before publishing any snapshot value.
+ const u32 values=240u;
+ for(u32 at=values;at<bytes-4u;at+=4u)if(get32(data+at)>0x7fffffffu)return;
+ u32 at=32u;
+ for(u32 i=0;i<10u;++i){restored_patterns[i]=get32(data+at);at+=4u;}
+ for(u32 t=0;t<8u;++t){
+  restored_schema[t].engine=get32(data+at);at+=4u;restored_schema[t].count=data[at++];
+  if(restored_schema[t].count>8u)return;
+  for(u32 i=0;i<8u;++i)restored_schema[t].choices[i]=data[at++];
+  for(u32 i=0;i<8u;++i)restored_schema[t].defaults[i]=data[at++];
+ }
+ for(u32 t=0;t<8u;++t)for(u32 i=0;i<8u;++i){
+  const u32 choices=restored_schema[t].choices[i];
+  const u32 top=choices>=2u?choices-1u:choices==1u?0u:100u;
+  if(choices>128u || restored_schema[t].defaults[i]>top)return;
+ }
+ for(u32 bank=0;bank<5u;++bank)for(u32 t=0;t<8u;++t)for(u32 i=26u;i<34u;++i){
+  const u32 entry=i-26u,choices=restored_schema[t].choices[entry];
+  const u32 top=entry>=restored_schema[t].count || choices==1u?0u:choices>=2u?choices-1u:100u;
+  const u32 offset=240u+4u*((bank*8u+t)*34u+i);
+  if(get32(data+offset)>top)return;
+ }
+ for(u32 bank=0;bank<5u;++bank)for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i){
+  const i32 v=static_cast<i32>(get32(data+at));at+=4u;
+  if(bank<2)s.scene[bank][t][i]=v;else if(bank==2)s.base[t][i]=v;else if(bank==3)s.origin[t][i]=v;else recorded_origin[t][i]=v;
+ }
+ s.captured_mask[0]=get32(data+12);s.captured_mask[1]=get32(data+16);
+ s.base_ready=1u;s.origin_ready=get32(data+24);recorded_reference=(get32(data+28)&1u)!=0u;
+ s.active_tracks=get32(data+4)==1u?255u:(get32(data+28)>>8u)&255u;restored_pending=true;
+}
+inline bool capture(ControlState& s,u32 side) {
+ if(side>1u || !read_all(candidate))return false;
+ for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i)
+  s.scene[side][t][i]=candidate[t][i];
+ s.captured_mask[side]=0xffu;
+ return true;
+}
+// Later HUD capture targets only the focused instrument track. Unlike a
+// global AUX capture, this never overwrites the other seven tracks. The scene
+// update is atomic after all 26 stored words and context have been verified.
+inline bool capture_one_track(ControlState& s,u32 side,u32 track) {
+ if(side>1u || track>=kTracks)return false;
+ i32 pending[kParams];
+ for(u32 p=0;p<kParams;++p)
+  if(!sdk_morph_stored_current_read(track,slots[p],&pending[p]))return false;
+ if(!sdk_morph_session_context_ok())return false;
+ for(u32 p=0;p<kParams;++p)s.scene[side][track][p]=pending[p];
+ s.captured_mask[side]|=(1u<<track);
+ return true;
+}
+inline bool captured(const ControlState& s) {
+ return (s.captured_mask[0]&s.captured_mask[1])==0xffu;
+}
+inline bool origin_pickup(ControlState& s) {
+ if(!read_all(candidate))return false;
+ for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i){
+  s.origin[t][i]=candidate[t][i];
+  if(!s.base_ready)s.base[t][i]=candidate[t][i];
+ }
+ s.base_ready=1u;s.origin_ready=1u;s.travel=0;
+ return true;
+}
+inline bool set_s(ControlState& s) {
+ // Dedicated SET S session: the bridge separately checks project/scene/block.
+ if(!sdk_morph_setbase_context_begin())return false;
+ bool good=true;
+ for(u32 t=0;t<kTracks && good;++t)for(u32 i=0;i<kParams;++i){
+  if(!sdk_morph_setbase_current_read(t,slots[i],&candidate[t][i])) {good=false;break;}
+ }
+ if(!sdk_morph_setbase_context_ok())good=false;
+ sdk_morph_setbase_context_end();
+ if(!good)return false;
+ for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i)
+  s.base[t][i]=candidate[t][i];
+ s.base_ready=1u;s.origin_ready=0u;s.mode=0u;s.travel=0;
+ s.phase=idle;s.cursor=0u;s.fault=0u;
+ return true;
+}
+inline bool refresh_scrambled_start(ControlState& s,u32 mask) {
+ if(!mask || !read_all(candidate))return false;
+ for(u32 t=0;t<kTracks;++t)if(!s.base_ready || (mask&(1u<<t)))
+  for(u32 i=0;i<kParams;++i)s.base[t][i]=candidate[t][i];
+ s.base_ready=1u;s.origin_ready=0u;s.mode=0u;s.travel=0;
+ s.phase=idle;s.cursor=0u;s.fault=0u;
+ return true;
+}
+inline i32 clamped_travel(i32 before,i32 steps) {
+ if(steps>4)steps=4;
+ if(steps< -4)steps=-4;
+ i32 after=before+steps;return after>64?64:after< -64?-64:after;
+}
+inline i32 desired(const ControlState& s,u32 t,u32 i) {
+ if(s.target_bypass)return s.base[t][i];
+ if(!s.travel)return s.origin[t][i];
+ const u32 side=s.travel>0?1u:0u;
+ const u32 steps=static_cast<u32>(s.travel>0?s.travel:-s.travel);
+ const u32 fraction=steps>=kFull?0x7fffffffu:(steps<<25u);
+ return opxy::morph::interpolate(s.origin[t][i],s.scene[side][t][i],fraction);
+}
+inline void schedule(ControlState& s,bool bypass) {
+ if(bypass)movement_lane.bypass();
+ s.target_bypass=bypass?1u:0u;s.phase=sending;s.cursor=0u;s.fault=0u;
+}
+inline bool activate(ControlState& s) {
+ if(!captured(s))return false;
+ if(transport_playing && recorded_reference) {
+  for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i)s.origin[t][i]=recorded_origin[t][i];
+  s.origin_ready=1u;
+ }
+ if(!s.origin_ready && !origin_pickup(s))return false;
+ s.mode=1u;movement_lane.activate();movement_lane.primed=false;return true;
+}
+inline void submit_tick(ControlState& s) {
+ u32 inspected=0u;
+ while(s.cursor<kTracks*kParams && inspected<ctrl::store_capacity) {
+  const u32 t=s.cursor/kParams,p=s.cursor%kParams;
+  if(!(s.active_tracks&(1u<<t))){s.cursor=(t+1u)*kParams;continue;}
+  const u32 available=kParams-p,remaining=ctrl::store_capacity-inspected;
+  const u32 count=available<remaining?available:remaining;
+  i32 actual[ctrl::store_capacity];
+  if(!sdk_morph_stored_batch_read(t,slots+p,count,actual)){s.phase=failed;s.fault=1u;return;}
+  for(u32 j=0;j<count;++j){
+   const i32 want=desired(s,t,p+j);
+   if(actual[j]!=want && !sdk_morph_stored_once_submit(t,slots[p+j],want)){
+    s.phase=failed;s.fault=2u;return;
+   }
+   ++s.cursor;++inspected;
+  }
+ }
+ if(s.cursor==kTracks*kParams){s.phase=verify_first;s.cursor=0u;}
+}
+inline void verify_tick(ControlState& s) {
+ u32 checked=0u;
+ while(s.cursor<kTracks*kParams && checked<ctrl::store_capacity) {
+  const u32 t=s.cursor/kParams,p=s.cursor%kParams;
+  if(!(s.active_tracks&(1u<<t))){s.cursor=(t+1u)*kParams;continue;}
+  const u32 available=kParams-p,remaining=ctrl::store_capacity-checked;
+  const u32 count=available<remaining?available:remaining;
+  i32 current[ctrl::store_capacity];
+  if(!sdk_morph_stored_batch_read(t,slots+p,count,current)){s.fault=3u;s.phase=failed;return;}
+  for(u32 j=0;j<count;++j){
+   if(current[j]!=desired(s,t,p+j)){s.fault=3u;s.phase=failed;return;}
+   ++s.cursor;++checked;
+  }
+ }
+ if(s.cursor==kTracks*kParams) {
+  s.cursor=0u;
+  if(s.phase==verify_first)s.phase=verify_second;
+  else {s.phase=idle;if(s.target_bypass){s.mode=0u;s.travel=0;s.origin_ready=0u;}}
+ }
+}
+
+// Process a HUD event only after the actual compositor witnesses that it
+// visibly owns the focused instrument track.
+inline bool hud_action(ControlState& s,const hud::Event& e,bool muted) {
+ if(!hud::event_valid(e) || muted || !sdk_morph_hud_frame_authorized(e.track))return false;
+ if(!context(s) || !sdk_morph_session_context_ok())return false;
+ if(s.phase==failed){
+  if(e.action==hud::LiveBypass && s.base_ready){schedule(s,true);return true;}
+  return false;
+ }
+ if(e.action==hud::ToggleEdit) {
+  s.edit_side^=1u;return true;
+ }
+ if(s.phase!=idle)return false; // never mutate scenes mid-restore
+ if(e.action==hud::CaptureTrackA || e.action==hud::CaptureTrackB) {
+  const u32 side=e.action==hud::CaptureTrackB?1u:0u;
+  if(!capture_one_track(s,side,e.track))return false;
+  if(s.mode && s.base_ready)schedule(s,true);
+  return true;
+ }
+ if(e.action==hud::SetS)return set_s(s);
+ if(e.action==hud::LiveBypass) {
+  if(s.mode){if(!s.base_ready)return false;schedule(s,true);return true;}
+  return activate(s);
+ }
+ if(e.action==hud::JumpA || e.action==hud::JumpB) {
+  if(!activate(s))return false;
+  s.travel=e.action==hud::JumpA?-64:64;
+  schedule(s,false);
+  return true;
+ }
+ return false;
+}
+
+inline i32 scene_adjust(i32 before,i32 detents) {
+ if(before<0)return before;
+ if(detents>4)detents=4;
+ if(detents< -4)detents=-4;
+ const u32 stride=0x02000000u;
+ const u32 distance=static_cast<u32>(detents>0?detents:-detents)*stride;
+ if(detents>0){const u32 room=0x7fffffffu-static_cast<u32>(before);
+  return static_cast<i32>(distance>=room?0x7fffffffu:static_cast<u32>(before)+distance);}
+ if(detents<0){const u32 room=static_cast<u32>(before);
+  return static_cast<i32>(distance>=room?0u:room-distance);}
+ return before;
+}
+// All input paths preserve an in-progress return to S through readback.
+inline bool movement_allowed(const ControlState& s) {
+ return s.phase!=failed && (s.phase==idle || !s.target_bypass);
+}
+inline void hud_apply_turns(ControlState& s,const HudTurnInput& input,bool muted) {
+ if(muted || s.phase==failed || !sdk_morph_hud_frame_authorized(input.track) ||
+    !sdk_morph_session_context_ok() || (sdk_morph_gui_shift_held()?1u:0u)!=input.shifted ||
+    sdk_morph_gui_module()!=input.module)return;
+ // Held K4 movement wins exclusively over ordinary scene edits, on all M pages.
+ if(input.k4_held && input.steps[3]) {
+  if(!movement_allowed(s))return;
+  if(activate(s)) {
+   const i32 before=s.travel;
+   s.travel=clamped_travel(s.travel,input.steps[3]);
+   if(s.travel!=before)schedule(s,false);
+  } else s.fault=12u;
+  return;
+ }
+ if(input.k4_held || s.mode!=0u || s.phase!=idle)return;
+ const u32 side=s.edit_side;
+ if(!(s.captured_mask[side]&(1u<<input.track)))return;
+ for(u32 encoder=0u;encoder<4u;++encoder) {
+  const i32 steps=input.steps[encoder];if(!steps)continue;
+  const u32 index=input.indices[encoder];if(index>=26u)continue;
+  s.scene[side][input.track][index]=scene_adjust(s.scene[side][input.track][index],steps);
+ }
+}
+void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
+ transport_playing=in.transport.playing;
+ u32 clicks=0; i32 turns[4]={0,0,0,0};
+ sdk_morph_aux_events_take(in.track,&clicks,turns);
+ // Counts describe events CONSUMED by the actual controller.  They are not
+ // fabricated from parameter changes or display frames.
+ if(aux_diag_ticks<9999u)++aux_diag_ticks;
+ for(u32 k=0;k<4u;++k) {
+  if((clicks>>k)&1u)if(aux_diag_clicks<9999u)++aux_diag_clicks;
+  const i32 steps=turns[k];
+  if(steps && aux_diag_turns<9999u)++aux_diag_turns;
+ }
+
+ const hud::Event pending_hud=take_hud_event();
+ const HudTurnInput turns_hud=take_hud_turn_input();
+ // Context is retained across GUI ticks. Never transplant A/B/S into a
+ // different stock project, scene or instrument block generation.
+ if(s.context_ready && !sdk_morph_session_context_ok()) {
+  control_reset(s);s.fault=4u;
+  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+ }
+ // Runs independently of AUX selection; retry until a complete valid read.
+ if(!in.muted && !startup_captured && !capture_startup(s)) {
+  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+ }
+ const u32 scrambled=scramble_pending;
+ if(scrambled && s.context_ready) {
+  // Cancel any unfinished morph write before it can overwrite the new sound.
+  s.phase=idle;s.cursor=0u;s.mode=0u;s.origin_ready=0u;s.travel=0;
+  if(refresh_scrambled_start(s,scrambled))scramble_pending &= ~scrambled;
+  else s.fault=14u;
+ }
+ // The mailbox is one shot even when the actual HUD isn't visible.
+ // Discard gestures while a scramble refresh is pending.
+ if(startup_captured && !scrambled && pending_hud.action && !hud_action(s,pending_hud,in.muted!=0u)) {
+  // Do not mutate the stored scenes, return snapshot, or send phase on refusal.
+  // A failed HUD action is not promoted into a stock AUX action.
+ }
+ if(startup_captured && !scrambled && (turns_hud.steps[0] || turns_hud.steps[1] || turns_hud.steps[2] || turns_hud.steps[3])) {
+  if(!context(s))s.fault=13u;
+  else hud_apply_turns(s,turns_hud,in.muted!=0u);
+ }
+ const u32 feedback=sdk_morph_stored_once_take_feedback();
+ s.last_feedback=feedback;
+ if(feedback && s.phase!=idle){s.fault=5u;s.phase=failed;}
+ // BRAIN-style routing: any click banks, signed turns disable/enable.
+ // Page changes consume old queued gestures; a turn never changes meaning.
+ if(in.page_key==1u || in.page_key==2u) {
+  aux_page=in.page_key;clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+ }
+ if(aux_page==2u) {
+  const u32 before=s.active_tracks;
+  if(clicks){route_bank^=1u;for(u32 k=0;k<4u;++k)turns[k]=0;}
+  for(u32 k=0;k<4u;++k){
+   const u32 bit=1u<<(route_bank*4u+k);
+   if(turns[k]>0)s.active_tracks|=bit;
+   if(turns[k]<0)s.active_tracks&=~bit;
+  }
+  // Restart an unfinished guarded pass with the new immutable target/mask.
+  if(before!=s.active_tracks && s.phase!=failed && (s.mode || s.phase!=idle)) {
+   schedule(s,s.phase!=idle && s.target_bypass);
+  }
+  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+ }
+ if(turns[0]<0)s.edit_side=0u;
+ if(turns[0]>0)s.edit_side=1u;
+ if(!in.muted && (clicks || turns[3])) {
+  if(!context(s)) {s.fault=6u;clicks=0;turns[3]=0;}
+ }
+ if(in.muted && (clicks&8u) && s.context_ready && s.mode && s.base_ready) {
+  // V1 parity: BYPASS requested while muted is queued, never written while muted.
+  schedule(s,true);
+ }
+ if(!in.muted && s.context_ready && !scrambled) {
+  // Captures before active movement; no partial overwrite.
+  if(s.phase==idle && (clicks&3u)) {
+   if((clicks&1u) && !capture(s,0u))s.fault=7u;
+   if((clicks&2u) && !capture(s,1u))s.fault=7u;
+   if(s.mode) schedule(s,true); // V1's capture-while-live restores S
+  } else if((clicks&8u) && s.phase==failed) {
+   // Manual explicit retry, only for interrupted BASE restoration.
+   if(s.base_ready)schedule(s,true);
+  } else if((clicks&8u) && s.mode) {
+   if(s.base_ready)schedule(s,true);
+  } else if((clicks&8u) && s.phase==idle && !s.mode) {
+   if(!activate(s))s.fault=8u;
+  } else if((clicks&4u) && s.phase==idle) {
+   if(!set_s(s))s.fault=9u;
+  } else if(turns[3] && movement_allowed(s)) {
+   if(activate(s)) {
+    const i32 before=s.travel;
+    s.travel=clamped_travel(s.travel,turns[3]);
+    if(before!=s.travel) {
+     movement_lane.seen=automation::encode(s.travel);movement_lane.primed=true;
+     const bool submitted=sdk_morph_movement_record(automation::encode(s.travel));
+     if(submitted && !recorded_reference && sdk_morph_movement_has_locks()) {
+      for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i)recorded_origin[t][i]=s.origin[t][i];
+      recorded_reference=true;
+     }
+     schedule(s,false);
+    }
+   } else s.fault=10u;
+  }
+  const bool lfo_active=s.mode && s.phase==idle && !movement_lane.blocked && sdk_morph_movement_lfo_active();
+  if(!turns[3] && s.mode && s.phase==idle && !movement_lane.blocked &&
+     (lfo_active || lfo_was_active)) {
+   // Finish every complete transaction before sampling a new target. No
+   // oscillator runs here: stock supplies the modulated, bounded movement.
+   const i32 next=automation::decode(in.values[11u][3u]);
+   if(next!=s.travel){s.travel=next;schedule(s,false);}
+   lfo_was_active=lfo_active;
+  }
+  i32 playback_travel=s.travel;
+  if(!lfo_active && !turns[3] && s.mode && recorded_reference && s.phase==idle &&
+     sdk_morph_movement_has_locks() &&
+     movement_lane.observe(in.values[11u][3u],in.transport.playing,in.muted!=0u,playback_travel)) {
+   if(recorded_reference){
+    for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i)s.origin[t][i]=recorded_origin[t][i];
+    s.origin_ready=1u;
+   }
+   s.travel=playback_travel;schedule(s,false);
+  }
+  if(s.phase!=idle && s.phase!=failed && !in.muted) {
+   if(!sdk_morph_session_context_ok()){s.phase=failed;s.fault=11u;}
+   else if(s.phase==sending)submit_tick(s);
+   else verify_tick(s);
+  }
+ }
+ out.display[4]=static_cast<i32>(aux_page);
+ out.display[5]=static_cast<i32>(s.active_tracks);
+ out.display[6]=static_cast<i32>(route_bank);
+ out.display[0]=static_cast<i32>(s.captured_mask[0]);
+ out.display[1]=static_cast<i32>(s.captured_mask[1]);
+ out.display[2]=s.travel;
+ out.display[3]=static_cast<i32>(s.phase | (s.mode<<4u) | (s.base_ready<<5u) |
+  (s.fault<<8u) | (s.edit_side<<16u));
+ // Snapshot is available only in a live unique-Morph session. Read-only
+ // publication cannot unlock the separate compositor authorization path.
+ sdk_morph_scramble_done=hud_scramble_done;
+ aux_probe=&s;
+ hud_source=(s.context_ready && sdk_morph_session_context_ok())?&s:0;
+ sdk_morph_hud_substitute=hud_source?hud_readonly_screen_route:0;
+ sdk_morph_hud_frame_witness=hud_source?sdk_morph_hud_compositor_witness:0;
+ sdk_morph_hud_press_route=hud_source?sdk_morph_hud_physical_press:0;
+ sdk_morph_hud_turn_suppress=hud_source?sdk_morph_hud_suppress_stock_turn:0;
+ sdk_morph_hud_raw_turn_route=hud_source?sdk_morph_hud_raw_turn:0;
+}
+}
+
+static bool hud_gesture_allowed() {
+ const opxy::u32 track=sdk_morph_gui_track();
+ if(track>=8u)return false;
+ const bool held=sdk_morph_track_held(track)!=0u;
+ return held ? (!sdk_morph_gui_shift_held() || morphcapture::hud_track_first_shift!=0u)
+             : morphcapture::hud_latch.enabled!=0u;
+}
