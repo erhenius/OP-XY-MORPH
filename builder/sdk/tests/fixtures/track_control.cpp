@@ -96,6 +96,8 @@ void stock_param_set(u32 project, u32 track, u32 index, i32 v) {
     (pattern[track] ? second_bases : bases)[track][index] = static_cast<u32>(v < 0 ? 0 : v);
     value(track, index) = v < 0 ? 0 : v;
 }
+u32 midi_stock_calls=0,midi_stock_track=0,midi_stock_cc=0,midi_stock_value=0;
+void stock_midi_parameter(u32 track,u32 cc,u32 value){++midi_stock_calls;midi_stock_track=track;midi_stock_cc=cc;midi_stock_value=value;}
 void stock_live_set(u32 project, u32 track, u32 index, i32 v) {
     require(project == kProject && track < control::all_tracks && index < control::track_parameters && v >= 0,
             "Invalid live write");
@@ -244,6 +246,7 @@ opxy::platform::Address opxy::platform::host_stock_address(opxy::platform::Addre
     if (address == kBlocks + 11 * kBlockBytes + 0x24) return reinterpret_cast<Address>(&cv_lfo_on);
     if (address == 0x8d58781c) return reinterpret_cast<Address>(&stock_engine);
     if (address == 0x8d5acea8) return reinterpret_cast<Address>(&stock_live_set);
+    if (address == 0x8d58e5ce) return reinterpret_cast<Address>(&stock_midi_parameter);
     if (address == 0x8d5acf28) return reinterpret_cast<Address>(&stock_param_set);
     if (address == 0x8d587708) return reinterpret_cast<Address>(&stock_track_data);
     if (address == 0x8d5ac9dc) return reinterpret_cast<Address>(&stock_shown);

@@ -413,6 +413,106 @@ int main() {
      check(vf.texts[27].chars[0]=='A' && vf.texts[30].chars[0]=='M',"M1 header not restored after routing");
      for(u32 t=18;t<22;++t)check(!vf.texts[t].chars[0],"M2 status leaked onto M1");
     }
+    {
+     // Actual SDK dispatch/consumer/controller; stock MIDI setter and transport
+     // are host models. This is not wire reception or native execution.
+     for(u32 cc=0;cc<128;++cc){
+      const i32 v=morphcapture::midi::travel(cc);
+      check(v>=-64 && v<=64,"MIDI travel escaped bounds");
+      if(cc)check(v>=morphcapture::midi::travel(cc-1),"MIDI mapping not monotonic");
+     }
+     check(morphcapture::midi::travel(0)==-64 && morphcapture::midi::travel(63)==0 &&
+       morphcapture::midi::travel(64)==0 && morphcapture::midi::travel(127)==64,"MIDI endpoints/deadband wrong");
+     cv_lfo_on=0;telemetry25=0;lfo[11][3]=0;playing[0]=0;host_recording=false;
+     selected=11;mute_flags(0,11)=0;engines[3]=77;
+     morphcapture::control_reset(state);fill(0x30000000);sdk_gui_tick();
+     fill(0x10000000);capture(0);fill(0x60000000);capture(1);fill(0x30000000);capture(2);
+     // Set distinct SHIFT snapshots with real schema/packing retained.
+     state.scene[0][3][26]=10;state.scene[1][3][26]=90;
+     state.scene[0][3][27]=0;state.scene[1][3][27]=3;
+     const u32 delegated=midi_stock_calls;
+     sdk_morph_midi_cc(10,15,127);sdk_morph_midi_cc(12,15,127);sdk_morph_midi_cc(11,14,127);sdk_morph_midi_cc(11,15,128);
+     check(midi_stock_calls==delegated+4 && midi_stock_value==128,"Unmatched MIDI did not delegate unchanged");
+     aux_engines[11]=0;sdk_morph_midi_cc(11,15,63);aux_engines[11]=42;
+     check(midi_stock_calls==delegated+5,"Non-Morph AUX ownership stole MIDI");
+     sdk_morph_midi_cc(11,15,127);sdk_gui_tick();
+     check(!state.mode && !morphcapture::midi_input.owns,"MIDI enabled LIVE from BYPASS");
+     capture(3);check(state.mode,"Manual LIVE failed");
+     selected=0;const u32 record_before_midi=host_recorded;host_recording=true;
+     sdk_morph_midi_cc(11,15,127);sdk_gui_tick();drain();
+     check(state.travel==64 && bases[7][0]==0x60000000u,"MIDI B did not reach unselected track 8");
+     check(opxy::platform::synth_shift::field(static_cast<i32>(bases[3][36]),0,shift_schema.defaults)==90,
+       "MIDI failed to morph SHIFT destination");
+     check(opxy::platform::synth_shift::field(static_cast<i32>(bases[3][36]),1,shift_schema.defaults)==3,"MIDI enum B endpoint wrong");
+     check(host_recorded==record_before_midi,"Direct MIDI or destination changes recorded automation");host_recording=false;
+     for(u32 cc=63;cc<=64;++cc){sdk_morph_midi_cc(11,15,cc);sdk_gui_tick();drain();
+      check(state.travel==0 && bases[7][0]==0x30000000u,"MIDI centre did not return to movement origin");}
+     sdk_morph_midi_cc(11,15,0);sdk_gui_tick();drain();
+     check(state.travel==-64 && bases[7][0]==0x10000000u,"MIDI A endpoint wrong");
+     check(opxy::platform::synth_shift::field(static_cast<i32>(bases[3][36]),1,shift_schema.defaults)==0,"MIDI enum A endpoint wrong");
+     check(state.base[0][0]==0x30000000 && state.scene[0][0][0]==0x10000000 && state.scene[1][0][0]==0x60000000,"MIDI overwrote stored snapshots");
+     // Latest packet wins while an existing immutable transaction finishes.
+     sdk_morph_midi_cc(11,15,127);sdk_gui_tick();
+     for(u32 n=0;n<10000;++n)sdk_morph_midi_cc(11,15,n%128u);
+     sdk_morph_midi_cc(11,15,63);sdk_gui_tick();drain();sdk_gui_tick();drain();
+     check(state.travel==0 && bases[7][0]==0x30000000u && !state.fault,"MIDI burst failed to coalesce or starved last track");
+     sdk_morph_midi_cc(11,15,127);sdk_gui_tick();
+     for(u32 n=0;n<40 && state.phase==morphcapture::sending;++n)sdk_gui_tick();
+     check(state.phase==morphcapture::verify_first,"MIDI test did not reach verification");
+     sdk_morph_midi_cc(11,15,0);sdk_gui_tick();sdk_morph_midi_cc(11,15,63);sdk_gui_tick();
+     check(state.travel==64 && !state.fault,"MIDI target changed under an in-flight verification");
+     drain();sdk_gui_tick();drain();
+     check(state.travel==0 && bases[7][0]==0x30000000u,"Latest MIDI verification-time target lost");
+     const u32 stable_writes=writes;
+     for(u32 n=0;n<40;++n){sdk_morph_midi_cc(11,15,(n&1u)?63u:64u);sdk_gui_tick();}
+     check(writes==stable_writes && state.phase==morphcapture::idle,"Repeated centre values caused redundant writes");
+     // Stock playback and LFO do not overwrite a deliberate MIDI takeover.
+     playing[0]=1;cv_lfo_on=1;telemetry25=0xab030001u;
+     morphcapture::recorded_reference=true;host_aux_masks[0][0]|=8u;
+     sdk_morph_midi_cc(11,15,127);sdk_gui_tick();drain();
+     for(u32 n=0;n<45;++n){value(11,3)=morphcapture::automation::encode(-64);lfo[11][3]=0;sdk_gui_tick();}
+     check(state.travel==64 && morphcapture::midi_input.owns,"Stale playback/LFO fought MIDI takeover");
+     // A physical turn consumes an overlapping MIDI event and returns source priority.
+     selected=11;sdk_morph_midi_cc(11,15,0);aux_events.turn(3,-1);sdk_gui_tick();
+     check(!morphcapture::midi_input.owns && state.travel==63,"Physical movement lost to overlapping MIDI");
+     cv_lfo_on=0;telemetry25=0;playing[0]=0;morphcapture::recorded_reference=false;
+     for(u32 n=0;n<128;++n)host_aux_masks[n][0]=host_aux_masks[n][1]=0;
+     drain();
+     capture(3);drain();sdk_morph_midi_cc(11,15,127);sdk_gui_tick();
+     check(!state.mode && !morphcapture::midi_input.owns,"MIDI undid manual BYPASS");
+     capture(3);mute_flags(0,11)=2;sdk_morph_midi_cc(11,15,0);sdk_gui_tick();
+     mute_flags(0,11)=0;sdk_gui_tick();
+     check(!morphcapture::midi_input.owns,"Muted MIDI packet replayed on unmute");
+     // M2 routing and lock priority remain in force.
+     state.active_tracks=127u;const u32 excluded=bases[7][0];
+     playing[0]=1;sdk_param_step_set(kProject,0,0,0x22220000);
+     sdk_morph_midi_cc(11,15,127);sdk_gui_tick();drain();
+     check(bases[7][0]==excluded && bases[6][0]==0x60000000u,"MIDI ignored routing mask");
+     check(value(0,0)==0x22220000 && !state.fault,"Destination lock lost priority under MIDI");
+     unlock(0,0);value(0,0)=static_cast<i32>(bases[0][0]);
+     // Context changes discard the mailbox and MIDI ownership.
+     sdk_morph_midi_cc(11,15,0);project_bytes[6]=1;sdk_gui_tick();
+     check(!state.mode && !morphcapture::midi_input.owns,"Project/scene change retained MIDI source");
+     project_bytes[6]=0;sdk_gui_tick();
+     sdk_morph_midi_cc(11,15,127);engines[3]=99;sdk_gui_tick();
+     check(!state.mode && !morphcapture::midi_input.owns,"Engine/schema change applied stale MIDI");
+     // Save format unchanged; source ownership is transient, not a recorded lane.
+     selected=11;capture(3);sdk_morph_midi_cc(11,15,127);sdk_gui_tick();drain();
+     opxy::u8 midi_saved[morphcapture::kSavedBytes]={};
+     check(morphcapture::control_save(state,midi_saved,sizeof midi_saved)==sizeof midi_saved,"MIDI session save failed");
+     morphcapture::control_load(state,midi_saved,sizeof midi_saved);sdk_gui_tick();
+     check(!state.mode && !morphcapture::midi_input.owns && !morphcapture::midi_input.ready,"MIDI ownership persisted across load");
+     capture(3);state.active_tracks=0u;const u32 before_none=writes;
+     sdk_morph_midi_cc(11,15,0);sdk_gui_tick();drain();
+     check(writes==before_none && state.travel==-64,"All-disabled MIDI wrote destinations");
+     state.active_tracks=255u;
+     sdk_morph_midi_cc(11,15,127);invalidate_on_value_read=true;sdk_gui_tick();
+     check(state.phase==morphcapture::failed && state.fault,"MIDI readback/context refusal was hidden");
+     project_bytes[6]=0;capture(3);drain();
+     check(!state.mode && !morphcapture::midi_input.owns,"Explicit fault recovery did not clear MIDI takeover");
+     std::printf("Gate36 new POD state: MIDI controller=%zu, SDK mailbox=%zu, epoch=%zu bytes\n",
+       sizeof(morphcapture::midi_input),sizeof(morph_midi),sizeof(morph_midi_epoch));
+    }
     std::printf("Gate33 additional state: %zu; page/bank/last-LFO statics: %zu; payload %u bytes\n",
       sizeof(state)-4404u,sizeof(morphcapture::aux_page)+sizeof(morphcapture::route_bank)+sizeof(morphcapture::lfo_was_active),morphcapture::kSavedBytes);
     std::printf("Gate32 identified new static bytes (before linker padding): %zu; persistence bytes: %u\n",

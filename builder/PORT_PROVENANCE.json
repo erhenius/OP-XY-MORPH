@@ -3,7 +3,10 @@
   "commit": "6642b3c6165043d29d4c9c9429294a42b71f924f",
   "original_base": "52c8de911a415e043fd4d1afc396c3869fcd1029",
   "sdk": "1.15",
-  "profile_changed": false,
+  "profile_changed": true,
   "legacy_profile_changed": false,
-  "port": "Morph Gate35 AUX artwork revision; Gate34 functionally accepted by owner; Gate35 native/device verification pending"
+  "port": "Gate36a development: correct explicit Blackfin MIDI hook export name; firmware profile unchanged from Gate36",
+  "profile_before_sha256": "a5b551940e0d26d7e436c6601c908cf3430d4406769accad458b11578a5b3f17",
+  "profile_after_sha256": "e73373c730e481d8155b41c975b9db6626fdefb5f1a5e913cdf68c9528546871",
+  "profile_delta": "One optional control-service hook at 0x8d58e818; original call target 0x8d58e5ce; before ffe3dbfe"
 }

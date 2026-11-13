@@ -1,6 +1,6 @@
-# Morph v1.0.0 Mac builder
+# Morph v1.1.0 Mac builder
 
-This is XY Machine Manager bundled with the exact Gate35 Morph machine and patched SDK 1.15 source. See ../README.md and ../docs/BUILDING.md.
+This is XY Machine Manager bundled with the Gate36a Morph machine and patched SDK 1.15 source. See ../README.md and ../docs/BUILDING.md.
 
 The public package excludes reference-kit.json and all personal compiled objects. Choose your own matching kit.json outside this repository before scanning/building. The selected private kit supplies the SDK-validated arithmetic runtime fallback. No authentication or allocation safeguards are disabled.
 

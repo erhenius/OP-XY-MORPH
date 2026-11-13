@@ -1,4 +1,4 @@
-# Build and install v1.0.0
+# Build and install v1.1.0
 
 ## Requirements
 
@@ -21,7 +21,7 @@ Keep firmware, kits, build/transfer jobs and projects in the SDK private directo
 1. Double-click `builder/Open_XY_Machine_Manager.command`. If the launcher cannot find your Python, run `python3.12 builder/app.py` in Terminal. Python must import tkinter.
 2. Put the XY in **MTP file transfer (Mac)** mode. Close other applications using its MTP connection.
 3. Choose your matching kit.json. Optionally select a previous verified local build job, then **Scan XY**. Automatic previous-job discovery uses the scanned OS hash and still verifies reconstruction.
-4. Choose **Install bundled Morph**, or **Replace installed Morph** when updating. Replacement preserves existing identities and is explicit; Gate35/v1.0.0 is the pinned target, not an automatic claim about the newest upstream version.
+4. Choose **Install bundled Morph**, or **Replace installed Morph** when updating. Replacement preserves existing identities and is explicit; Gate36a/v1.1.0 is the pinned target, not an automatic claim about the newest upstream version.
 5. **Calculate footprint**, inspect unknown/over-limit results, then **Build**. Compatible objects may be reused; missing inputs are compiled through the authenticated SDK. A complete final build performs its own allocation and reconstruction checks.
 6. Review the candidate and verified allocation. Stage only through the app/SDK. It performs device-baseline rechecks, candidate integrity checks, backups and readback. Then run **WRITE OS** on the XY and reboot.
 

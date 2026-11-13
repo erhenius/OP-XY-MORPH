@@ -1,1 +1,1 @@
-See ../docs/KNOWN_ISSUES.md for current v1.0.0 limitations. Historical development records retained elsewhere in this directory are not the current issue list. The old REC-held scatter-recording issue was addressed by Gate32 movement-lane automation; existing affected projects are not automatically repaired.
+Current public limitations: ../docs/KNOWN_ISSUES.md. Gate36a is owner hardware-accepted. The Gate36 native hook export failure is fixed by an explicit assembler export name; full SDK suite remains red as documented.

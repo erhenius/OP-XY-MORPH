@@ -3,6 +3,8 @@
 #include <opxy/morph_aux_events.hpp>
 #include <opxy/morph_store_bridge.hpp>
 #include "morph_automation.hpp"
+#include "morph_midi.hpp"
+#include <opxy/morph_midi_input.hpp>
 #include "morph_logic.hpp" // exact V1 Q31 math, no 64-bit linker helper
 #include <opxy/morph_hud_contract.hpp>
 #include <opxy/morph_hud_snapshot.hpp>
@@ -202,6 +204,7 @@ extern "C" bool sdk_morph_hud_snapshot_read(u32 track,hud::Snapshot* out) {
 static u32 scramble_pending=0u;
 static bool startup_captured=false;
 static automation::Lane movement_lane={};
+static midi::State midi_input={};
 static i32 recorded_origin[8][34]={};
 static bool recorded_reference=false, transport_playing=false;
 static opxy::morphport::ShiftSchema restored_schema[8]={};
@@ -355,6 +358,7 @@ opxy::u32 hud_readonly_screen_route(opxy::u32 selected_page) {
  return 219u;
 }
 void control_reset(ControlState& s) {
+ midi_input.reset();sdk_morph_midi_clear();
  aux_page=1u;route_bank=0u;lfo_was_active=false;s.active_tracks=255u;
  scramble_pending=0u;startup_captured=false;restored_pending=false;recorded_reference=false;transport_playing=false;movement_lane.reset();
  sdk_morph_gui_turns_reset();
@@ -523,6 +527,7 @@ inline bool set_s(ControlState& s) {
  for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i)
   s.base[t][i]=candidate[t][i];
  s.base_ready=1u;s.origin_ready=0u;s.mode=0u;s.travel=0;
+ midi_input.reset();sdk_morph_midi_clear();
  s.phase=idle;s.cursor=0u;s.fault=0u;
  return true;
 }
@@ -531,6 +536,7 @@ inline bool refresh_scrambled_start(ControlState& s,u32 mask) {
  for(u32 t=0;t<kTracks;++t)if(!s.base_ready || (mask&(1u<<t)))
   for(u32 i=0;i<kParams;++i)s.base[t][i]=candidate[t][i];
  s.base_ready=1u;s.origin_ready=0u;s.mode=0u;s.travel=0;
+ midi_input.reset();sdk_morph_midi_clear();
  s.phase=idle;s.cursor=0u;s.fault=0u;
  return true;
 }
@@ -548,10 +554,11 @@ inline i32 desired(const ControlState& s,u32 t,u32 i) {
  return opxy::morph::interpolate(s.origin[t][i],s.scene[side][t][i],fraction);
 }
 inline void schedule(ControlState& s,bool bypass) {
- if(bypass)movement_lane.bypass();
+ if(bypass){movement_lane.bypass();midi_input.reset();sdk_morph_midi_clear();}
  s.target_bypass=bypass?1u:0u;s.phase=sending;s.cursor=0u;s.fault=0u;
 }
 inline bool activate(ControlState& s) {
+ midi_input.reset();sdk_morph_midi_clear();
  if(!captured(s))return false;
  if(transport_playing && recorded_reference) {
   for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i)s.origin[t][i]=recorded_origin[t][i];
@@ -697,8 +704,10 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  if(!in.muted && !startup_captured && !capture_startup(s)) {
   clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
  }
+ if(in.muted){u32 discarded=0u;(void)sdk_morph_midi_take(&discarded);midi_input.ready=false;}
  const u32 scrambled=scramble_pending;
  if(scrambled && s.context_ready) {
+  midi_input.reset();sdk_morph_midi_clear();
   // Cancel any unfinished morph write before it can overwrite the new sound.
   s.phase=idle;s.cursor=0u;s.mode=0u;s.origin_ready=0u;s.travel=0;
   if(refresh_scrambled_start(s,scrambled))scramble_pending &= ~scrambled;
@@ -775,8 +784,18 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
     }
    } else s.fault=10u;
   }
-  const bool lfo_active=s.mode && s.phase==idle && !movement_lane.blocked && sdk_morph_movement_lfo_active();
-  if(!turns[3] && s.mode && s.phase==idle && !movement_lane.blocked &&
+  u32 midi_cc=0u;
+  const bool midi_received=sdk_morph_midi_take(&midi_cc);
+  const bool physical_movement=turns[3] || (clicks&15u) || pending_hud.action ||
+      (turns_hud.k4_held && turns_hud.steps[3]);
+  if(midi_received && !physical_movement && s.mode && !in.muted &&
+     !movement_lane.blocked && movement_allowed(s))midi_input.offer(midi_cc);
+  if(s.mode && !in.muted && midi_input.ready && s.phase==idle && !movement_lane.blocked) {
+   midi_input.ready=false;
+   if(s.travel!=midi_input.target){s.travel=midi_input.target;schedule(s,false);}
+  }
+  const bool lfo_active=!midi_input.owns && s.mode && s.phase==idle && !movement_lane.blocked && sdk_morph_movement_lfo_active();
+  if(!midi_input.owns && !turns[3] && s.mode && s.phase==idle && !movement_lane.blocked &&
      (lfo_active || lfo_was_active)) {
    // Finish every complete transaction before sampling a new target. No
    // oscillator runs here: stock supplies the modulated, bounded movement.
@@ -785,7 +804,7 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
    lfo_was_active=lfo_active;
   }
   i32 playback_travel=s.travel;
-  if(!lfo_active && !turns[3] && s.mode && recorded_reference && s.phase==idle &&
+  if(!midi_input.owns && !lfo_active && !turns[3] && s.mode && recorded_reference && s.phase==idle &&
      sdk_morph_movement_has_locks() &&
      movement_lane.observe(in.values[11u][3u],in.transport.playing,in.muted!=0u,playback_travel)) {
    if(recorded_reference){

@@ -10,7 +10,7 @@ export const selectArtwork = Graphics.selectArtwork;
 // The init preset's authored settings, shared with tooling.adapters.default_preset
 // (write_builder inlines this same file's content for the offline export).
 import DEFAULT_PRESET_TEMPLATE from '../tooling/default_preset.json' with { type: 'json' };
-export const PROFILE_SHA256 = 'a5b551940e0d26d7e436c6601c908cf3430d4406769accad458b11578a5b3f17';
+export const PROFILE_SHA256 = 'e73373c730e481d8155b41c975b9db6626fdefb5f1a5e913cdf68c9528546871';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -873,7 +873,7 @@ export async function patchFirmware(kit, linked, stock, {profiling = true} = {})
       after = before;  // inactive hooks leave the corresponding stock code unchanged
     } else if (['hook', 'startup'].includes(edit.kind)) {
       const destination = linked.globals.get(edit.symbol);
-      check(destination >= low && destination < low + linked.module.length, 'Hook destination outside module');
+      check(destination >= low && destination < low + linked.module.length, 'Hook destination outside module: ' + edit.symbol + ' (' + String(destination) + ')');
       after = redirect(edit, destination);
     } else {
       check(['heap', 'table', 'text'].includes(edit.kind), 'Unknown edit kind');

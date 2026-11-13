@@ -2317,6 +2317,17 @@
       "symbol": "sdk_drumline_page_hook",
       "call": true,
       "service": "drumline"
+    },
+    {
+      "kind": "hook",
+      "name": "Morph MIDI movement: intercept CC12-47 parameter dispatch; unmatched traffic delegates unchanged",
+      "address": "0x8d58e818",
+      "file_offset": "0x1c5a74",
+      "length": 4,
+      "before": "ffe3dbfe",
+      "symbol": "sdk_morph_midi_cc",
+      "call": true,
+      "service": "control"
     }
   ],
   "compiler": "bfin-elf-gcc 8.0.0 (deanm1278/blackfin-plus-gnu e4408a1) + toolchain/gcc patches"

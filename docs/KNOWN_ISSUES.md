@@ -1,3 +1,7 @@
+# v1.1.0 notes
+
+The illustrated PDF describes the unchanged Gate35 controls and screens; MIDI is covered by the separate [MIDI addendum](MIDI.md). The normal MIDI CC dispatch is supported; alternative stock MIDI-control routing/port combinations need qualification. Owner acceptance does not prove every edge case.
+
 # v1.0.0 known issues and limits
 
 - Fast LFO movement can be stepped or lag the stock waveform. Morph completes guarded GUI-thread transactions and readback before sampling the next autonomous target. No hardware CPU measurements are published.

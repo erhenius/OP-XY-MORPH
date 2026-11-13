@@ -2,5 +2,5 @@
   "schema": 1,
   "sdk": "1.15",
   "kind": "synth",
-  "description": "Morph Gate35: approved M1 logo and BRAIN-style M2 routing display, preserving Gate34 controls"
+  "description": "Morph Gate36a development: channel 12 CC15 movement with 63/64 origin deadband; Gate35 AUX designs retained"
 }

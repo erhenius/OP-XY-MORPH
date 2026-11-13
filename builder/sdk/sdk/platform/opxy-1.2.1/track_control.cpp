@@ -68,6 +68,7 @@
 // Own turns: the turn hooks (synth_controls.cpp) offer each detent of a
 // track's encoders to sdk_control_turn before stock's editor sees it.
 #include "track_control.hpp"
+#include <opxy/morph_midi_input.hpp>
 #include "stock.hpp"
 #include "synth_controls.hpp"
 #include "benchmark.hpp"
@@ -203,6 +204,8 @@ control::Overlay* morph_overlay;
 opxy::morphport::Session morph_session={};
 opxy::morphport::Session morph_setbase={};
 opxy::morphport::Pending morph_pending[control::store_capacity]={};
+opxy::morphmidi::Latest morph_midi={};
+u32 morph_midi_epoch=0u;
 u32 morph_skips;
 u32 morph_setbase_skips;
 
@@ -269,6 +272,7 @@ bool morph_check(const opxy::morphport::Session& session) {
     return session.matches(p,byte(p+6u),blocks);
 }
 void morph_reset_bridge() {
+    morph_midi.clear();
     morph_callback=false;morph_overlay=nullptr;
     morph_session.clear();morph_setbase.clear();
     for(u32 i=0;i<control::store_capacity;++i)morph_pending[i].accepted=false;
@@ -427,6 +431,32 @@ extern "C" bool sdk_morph_persist_identity(opxy::morphport::ShiftSchema* schemas
     }
     return project==word(0x840a0524) && !word(kProjectLoading);
 }
+// Stock CC dispatch is in the GUI message path. No synth/store work here.
+extern "C" void sdk_morph_midi_cc(u32 track,u32 cc,u32 value) {
+    if(!opxy::morphmidi::matches(track,cc,value)) {
+        stock<void(u32,u32,u32)>(0x8d58e5ce)(track,cc,value);return;
+    }
+    const ControlMachine* m=owner(kMorphHost);
+    if(!m || !m->unique || !morph_identity(m->name)) {
+        stock<void(u32,u32,u32)>(0x8d58e5ce)(track,cc,value);return;
+    }
+    // Consume matching Morph traffic even when not ready, to avoid stock's
+    // ordinary setter recording unintended AUX locks. Full checks are deferred
+    // to the consumer; no all-track schema scan for each incoming packet.
+    const u32 project=word(0x840a0524);
+    if(!morph_session.active || word(kProjectLoading) || !project ||
+       project!=morph_session.project || byte(project+6u)!=morph_session.scene ||
+       stock<u32(u32)>(0x8d587708)(kMorphHost)!=morph_session.aux_block)return;
+    morph_midi.offer(value,morph_midi_epoch);
+}
+extern "C" void sdk_morph_midi_clear(){morph_midi.clear();}
+extern "C" bool sdk_morph_midi_take(u32* value) {
+    if(!morph_midi.pending)return false;
+    const opxy::morphmidi::Latest event=morph_midi;morph_midi.clear();
+    if(!value || event.epoch!=morph_midi_epoch || !morph_live_context() ||
+       muted(kMorphHost) || !morph_check(morph_session))return false;
+    *value=event.value;return true;
+}
 extern "C" bool sdk_morph_movement_has_locks() {
     if(!morph_live_context() || !morph_check(morph_session))return false;
     const u32 block=stock<u32(u32)>(0x8d587708)(kMorphHost);
@@ -548,6 +578,7 @@ extern "C" bool sdk_morph_session_context_begin() {
     morph_schema_capture(morph_session);
     morph_session.aux_block=stock<u32(u32)>(0x8d587708)(kMorphHost);
     morph_session.begin(project,byte(project+6u),blocks);
+    morph_midi.clear();if(++morph_midi_epoch==0u)++morph_midi_epoch;
     return morph_check(morph_session);
 }
 extern "C" bool sdk_morph_session_context_ok() {
@@ -583,7 +614,8 @@ extern "C" bool sdk_morph_view_current_batch(u32 track,const u32* indices,u32 co
     for(u32 i=0;i<count;++i)out[i]=pending[i];
     return true;
 }
-extern "C" void sdk_morph_session_context_end() {morph_session.clear();}
+extern "C" void sdk_morph_session_context_end() {
+    morph_midi.clear();morph_session.clear();}
 extern "C" bool sdk_morph_setbase_context_begin() {
     if(!morph_live_context() || muted(kMorphHost))return false;
     const u32 project=word(0x840a0524);

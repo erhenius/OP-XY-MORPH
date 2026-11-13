@@ -1,9 +1,5 @@
-# Morph v1.0.0
+# v1.1.0 — Gate36a
 
-The first public Morph release for OP-XY. Pinned machine revision: Gate35; patched SDK: 1.15; target firmware profile: 1.2.1.
+Adds MIDI movement on channel 12, CC 15. Values 0/127 reach A/B; 63 and 64 select movement origin. Existing S, routing, lock priority, SHIFT morphing and physical movement automation remain intact. MIDI input does not record a second lane or reactivate bypass. Physical movement takes priority; see docs/MIDI.md for takeover details and reception limitations.
 
-Includes source, macOS source builder, approved AUX designs and the illustrated quick reference. The owner confirmed feature integration without regressions. No universal firmware image or personal compiled collection is provided. Bring the matching kit/source provenance for your own setup.
-
-Read README.md, docs/BUILDING.md and docs/KNOWN_ISSUES.md before building. CPU profiling/catalog approval remain pending; the full SDK suite is not green. The public builder's external-kit packaging path requires fresh Mac/device acceptance.
-
-Recommended tag: v1.0.0. Release title: Morph v1.0.0 - first public release.
+Gate36a fixes the Blackfin MIDI-hook export name from the Gate36 development build. Owner confirms correct operation with no regressions. No firmware or personal compiled kit is included. Full SDK suite remains red; see docs/VALIDATION.md. The original v1.0.0 release remains the rollback.

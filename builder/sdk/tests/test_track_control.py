@@ -239,7 +239,7 @@ class TrackControl(unittest.TestCase):
         aux.definition['resources']['trackControl'].update(unique=True, aux=[12])
         hooks = [p for p in config()['patches'] if p.get('service') == 'control' and p['kind'] == 'hook']
         self.assertEqual(sorted(p['symbol'] for p in hooks),
-                         ['sdk_gui_tick', 'sdk_param_edit_set', 'sdk_param_shown_hook'] + ['sdk_param_step_set'] * 3 +
+                         ['sdk_gui_tick', 'sdk_morph_midi_cc', 'sdk_param_edit_set', 'sdk_param_shown_hook'] + ['sdk_param_step_set'] * 3 +
                          ['sdk_project_clear',
                           'sdk_project_clear_random'])
         # Aux tracks are a service of their own: its hooks and MTP allowlist edits.
@@ -364,6 +364,34 @@ class TrackControl(unittest.TestCase):
         offset = mapped_offset(ldr(stock), int(patch['address'], 16), patch['length'])
         self.assertEqual(offset, int(patch['file_offset'], 16))
         self.assertEqual(stock[offset:offset + 4].hex(), patch['before'])
+
+    @unittest.skipUnless(os.environ.get('OPXY_TEST_STOCK_OS'), 'Private stock input not supplied')
+    def test_morph_cc_hook_replaces_the_verified_stock_dispatch_call(self):
+        from tooling.firmware import decode_branch
+        stock=Path(os.environ['OPXY_TEST_STOCK_OS']).read_bytes();profile=config()
+        self.assertEqual(sha(stock),profile['stock_sha256'])
+        patch=next(p for p in profile['patches'] if p.get('symbol')=='sdk_morph_midi_cc')
+        address=int(patch['address'],16);offset=mapped_offset(ldr(stock),address,4)
+        self.assertEqual(offset,int(patch['file_offset'],16))
+        self.assertEqual(stock[offset:offset+4].hex(),patch['before'])
+        self.assertEqual(decode_branch(address,stock[offset:offset+4]),(0x8d58e5ce,True))
+        self.assertEqual(patch['service'],'control')
+
+    def test_morph_midi_hook_export_survives_leading_underscore_abi(self):
+        # Host compiler model of Blackfin's C name prefix, not a native build.
+        import shutil
+        nm=shutil.which('nm')
+        if not nm:self.skipTest('nm unavailable')
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=root/'hook.cpp';obj=root/'hook.o'
+            source.write_text('#include <opxy/morph_midi_input.hpp>\nextern "C" void sdk_morph_midi_cc(opxy::u32,opxy::u32,opxy::u32) {}\n')
+            compile=subprocess.run([HOST_CXX,'-std=c++11','-fleading-underscore','-I'+str(ROOT/'sdk/include'),'-c',str(source),'-o',str(obj)],capture_output=True,text=True)
+            if compile.returncode and ('unknown argument' in compile.stderr or 'unrecognized command-line option' in compile.stderr):
+                self.skipTest('Host compiler cannot model the leading-underscore ABI')
+            self.assertEqual(compile.returncode,0,compile.stderr)
+            symbols=subprocess.check_output([nm,'-g',str(obj)],text=True)
+            self.assertRegex(symbols,r'(?m)\bT sdk_morph_midi_cc$')
+            self.assertNotRegex(symbols,r'(?m)\bT _sdk_morph_midi_cc$')
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 # Morph for OP-XY
 
-**Morph v1.0.0** - the first public release, pinned to hardware-tested **Gate35**.
+**Morph v1.1.0** - MIDI update, pinned to hardware-tested **Gate36a**.
 
 Capture two sounds across your instrument tracks, move toward either one, and return to a stored starting point. Choose which tracks participate, use the instrument HUD for performance and snapshot editing, or drive the movement with recorded automation and the stock LFO.
 
@@ -31,13 +31,23 @@ The repository contains source and a macOS Python/Tk builder. It does **not** co
 
 The final build must reconstruct the original setup and fit the protected **4 MiB module reservation**. Unknown provenance, incompatible kits and over-capacity builds are refused. This region is not total storage or CPU usage. Scanning, calculation and building remain read-only toward the device; staging is separate and never writes the boot partition itself.
 
+## MIDI movement — new in v1.1.0
+
+Use **MIDI channel 12, CC 15**, with Morph manually set LIVE.
+
+| CC value | Movement |
+|---|---|
+| 0 | A endpoint |
+| 63 or 64 | Current movement origin |
+| 127 | B endpoint |
+
+Origin is the existing movement reference; it is not necessarily S. MIDI does not reactivate BYPASS and is not recorded into the AUX automation lane. Physical K4 recording remains available. See [MIDI behaviour and takeover](docs/MIDI.md).
+
 ## Release status
 
-The owner reported Gate35's features integrated successfully with no observed regressions. v1.0.0 freezes that machine and SDK source; it is not a new firmware-behaviour revision.
+The owner reports Gate36a works correctly with no regressions. v1.1.0 replaces Gate35 with Gate36a; v1.0.0 remains the rollback release. The public builder uses your explicitly selected private matching kit; fresh acceptance of this exact public archive remains pending.
 
-The public builder omits the personal compiled reference kit and uses an explicitly selected private kit instead. Its packaging adapter is host-tested; that external-kit packaging path still needs a fresh Mac/device acceptance run. Native allocation is verified by each actual build. No native compiler receipt or CPU timing is claimed from the packaging environment.
-
-Targeted host checks pass. The bundled full SDK check is **not green**: 18 failures, 15 errors and 37 skips in 544 tests, documented in [validation](docs/VALIDATION.md). Hardware CPU profiling and upstream catalog approval remain pending. This GitHub release does not imply catalog approval.
+Targeted host checks pass. The full SDK suite remains **not green: 546 tests, 18 failures, 15 errors, 38 skips**. See [validation](docs/VALIDATION.md). Native allocation is checked for each build. CPU usage has not been measured and upstream catalog approval is not claimed.
 
 ## Read more
 
