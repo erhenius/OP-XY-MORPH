@@ -583,7 +583,7 @@ u32 sdk_aux_key(u32 controller, const u32* event) {
             if(stock<u32(u32)>(0x8d5b7d7cu)(other))return 0;
 
         if (key == 9 && m->shared_lfo) return 0;
-        if (key == 6 || (key == 7 && morph_name(m->name))) {
+        if (key == 6 || ((key == 7 || key == 8) && morph_name(m->name))) {
             morph_events.clear();
             stock<void(u32, u32)>(0x8c08f74c)(controller, 0);
         }

@@ -2,7 +2,7 @@
 
 This package is prepared for https://github.com/erhenius/OP-XY-MORPH . It does not push, tag or publish remotely by itself.
 
-1. Extract OP-XY-MORPH-v1.1.0-GitHub.zip. Its OP-XY-MORPH-v1.1.0 folder is the repository content.
+1. Extract OP-XY-MORPH-v1.2.0-GitHub.zip. Its OP-XY-MORPH-v1.2.0 folder is the repository content.
 2. Clone your existing repository to a separate clean folder. Copy the extracted folder's contents into that clone, including .github and .gitignore. The supplied README replaces the existing README; LICENSE preserves the existing GPL-3.0 text. Do not copy a .git directory from elsewhere.
 3. From the clone, run `python3 tools/verify_release.py`. Review `git status` and the staged diff. No firmware, private kit or personal project should be added.
 4. Commit and push the reviewed content to your normal branch. For example:
@@ -10,12 +10,12 @@ This package is prepared for https://github.com/erhenius/OP-XY-MORPH . It does n
 ```sh
 git add README.md LICENSE LICENSES NOTICE.md VERSION release.json RELEASE_FILES_SHA256.json CHANGELOG.md RELEASE_NOTES.md PUBLISHING.md UPDATE_FROM_v1.0.0.md .gitignore .github docs morphcapture builder tools
 git diff --cached --stat
-git commit -m "Release Morph v1.1.0 (Gate36a)"
+git commit -m "Release Morph v1.2.0 (Gate39)"
 git push
 ```
 
-5. After reviewing the repository and CI results, create an annotated `v1.1.0` tag on that commit and push the tag, or create it through GitHub Releases. Do not move this tag to later changes.
-6. Create a GitHub Release titled `Morph v1.1.0 - MIDI movement update`, using RELEASE_NOTES.md as the description. Attach the prepared v1.1.0 source/builder ZIP. GitHub also provides source archives for the tag.
+5. After reviewing the repository and CI results, create an annotated `v1.2.0` tag on that commit and push the tag, or create it through GitHub Releases. Do not move this tag to later changes.
+6. Create a GitHub Release titled `Morph v1.2.0 - MIDI movement update`, using RELEASE_NOTES.md as the description. Attach the prepared v1.2.0 source/builder ZIP. GitHub also provides source archives for the tag.
 
 The exact machine and SDK are pinned by release.json and the file manifests. The builder manifest covers its public packaging changes. Keep source archives and release assets in sync; edits after packaging require a reviewed new manifest/build rather than silently changing the released bytes.
 

@@ -239,7 +239,7 @@ class TrackControl(unittest.TestCase):
         aux.definition['resources']['trackControl'].update(unique=True, aux=[12])
         hooks = [p for p in config()['patches'] if p.get('service') == 'control' and p['kind'] == 'hook']
         self.assertEqual(sorted(p['symbol'] for p in hooks),
-                         ['sdk_gui_tick', 'sdk_morph_midi_cc', 'sdk_param_edit_set', 'sdk_param_shown_hook'] + ['sdk_param_step_set'] * 3 +
+                         ['sdk_gui_tick', 'sdk_morph_midi_cc', 'sdk_morph_pad_event', 'sdk_param_edit_set', 'sdk_param_shown_hook'] + ['sdk_param_step_set'] * 3 +
                          ['sdk_project_clear',
                           'sdk_project_clear_random'])
         # Aux tracks are a service of their own: its hooks and MTP allowlist edits.
@@ -377,6 +377,26 @@ class TrackControl(unittest.TestCase):
         self.assertEqual(decode_branch(address,stock[offset:offset+4]),(0x8d58e5ce,True))
         self.assertEqual(patch['service'],'control')
 
+    @unittest.skipUnless(os.environ.get('OPXY_TEST_STOCK_OS'), 'Private stock input not supplied')
+    def test_physical_pad_hook_and_unmodified_midi_call(self):
+        from tooling.firmware import decode_branch
+        stock=Path(os.environ['OPXY_TEST_STOCK_OS']).read_bytes();profile=config()
+        self.assertEqual(sha(stock),profile['stock_sha256'])
+        patch=next(p for p in profile['patches'] if p.get('symbol')=='sdk_morph_pad_event')
+        address=int(patch['address'],16);offset=mapped_offset(ldr(stock),address,4)
+        self.assertEqual(address,0x8d5b27f6)
+        self.assertEqual(offset,int(patch['file_offset'],16))
+        self.assertEqual(stock[offset:offset+4].hex(),patch['before'])
+        self.assertEqual(decode_branch(address,stock[offset:offset+4]),(0x8d5974e0,True))
+        for call in (0x8d58ec30,0x8d5979d6):
+            at=mapped_offset(ldr(stock),call,4)
+            self.assertEqual(decode_branch(call,stock[at:at+4]),(0x8d5974e0,True))
+            for edit in profile['patches']:
+                if 'address' in edit and 'length' in edit:
+                    start=int(edit['address'],16)
+                    self.assertFalse(start<call+4 and start+edit['length']>call)
+        self.assertEqual(patch['service'],'control')
+
     def test_morph_midi_hook_export_survives_leading_underscore_abi(self):
         # Host compiler model of Blackfin's C name prefix, not a native build.
         import shutil
@@ -384,7 +404,7 @@ class TrackControl(unittest.TestCase):
         if not nm:self.skipTest('nm unavailable')
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=root/'hook.cpp';obj=root/'hook.o'
-            source.write_text('#include <opxy/morph_midi_input.hpp>\nextern "C" void sdk_morph_midi_cc(opxy::u32,opxy::u32,opxy::u32) {}\n')
+            source.write_text('#include <opxy/morph_pad_input.hpp>\nextern "C" void sdk_morph_pad_event(opxy::u32,opxy::u32,opxy::i32,opxy::u32) {}\n#include <opxy/morph_midi_input.hpp>\nextern "C" void sdk_morph_midi_cc(opxy::u32,opxy::u32,opxy::u32) {}\n')
             compile=subprocess.run([HOST_CXX,'-std=c++11','-fleading-underscore','-I'+str(ROOT/'sdk/include'),'-c',str(source),'-o',str(obj)],capture_output=True,text=True)
             if compile.returncode and ('unknown argument' in compile.stderr or 'unrecognized command-line option' in compile.stderr):
                 self.skipTest('Host compiler cannot model the leading-underscore ABI')
@@ -392,6 +412,8 @@ class TrackControl(unittest.TestCase):
             symbols=subprocess.check_output([nm,'-g',str(obj)],text=True)
             self.assertRegex(symbols,r'(?m)\bT sdk_morph_midi_cc$')
             self.assertNotRegex(symbols,r'(?m)\bT _sdk_morph_midi_cc$')
+            self.assertRegex(symbols,r'(?m)\bT sdk_morph_pad_event$')
+            self.assertNotRegex(symbols,r'(?m)\bT _sdk_morph_pad_event$')
 
 
 if __name__ == '__main__':

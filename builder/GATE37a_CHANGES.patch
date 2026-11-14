@@ -1,0 +1,99 @@
+--- a/machine/morph_pad.hpp
++++ b/machine/morph_pad.hpp
+@@ -16,15 +16,15 @@
+   // Native calibration is bounded to +/-8191. Clamp before negation.
+   pressure=pressure< -8191?-8191:pressure>8191?8191:pressure;
+   const u32 magnitude=static_cast<u32>(pressure<0?-pressure:pressure);
+-  // Full pressure: approximately two seconds A->B. Cap stalled GUI time.
++  // Full pressure: approximately 1.33 seconds A->B. Cap stalled GUI time.
+   const u32 dt=elapsed>50000u?50000u:elapsed;
+-  remainder+=magnitude*dt;
+-  const u32 quantum=8191u*15625u;
++  remainder+=magnitude*dt*3u;
++  const u32 quantum=8191u*31250u;
+   const i32 steps=static_cast<i32>(remainder/quantum);
+   remainder%=quantum;
+   target+=sign*steps;
+-  if(target>=64){target=64;remainder=0;}
+-  if(target<=-64){target=-64;remainder=0;}
++  if(target>64 || (target==64 && sign>0)){target=64;remainder=0;}
++  if(target< -64 || (target==-64 && sign<0)){target=-64;remainder=0;}
+  }
+ };
+ }}
+--- a/machine/morph_hud_delay.hpp
++++ b/machine/morph_hud_delay.hpp
+@@ -8,9 +8,9 @@
+  void observe(opxy::u32 selected,bool eligible,opxy::u32 delta){
+   if(!eligible){reset();return;}
+   if(!pending || track!=selected){track=selected;elapsed=0u;pending=true;return;}
+-  const opxy::u32 remaining=250000u-elapsed;
++  const opxy::u32 remaining=150000u-elapsed;
+   elapsed+=delta>remaining?remaining:delta;
+  }
+- bool ready(opxy::u32 selected)const{return pending && track==selected && elapsed>=250000u;}
++ bool ready(opxy::u32 selected)const{return pending && track==selected && elapsed>=150000u;}
+ };
+ }
+--- a/boundary_cases.cpp
++++ b/boundary_cases.cpp
+@@ -5,7 +5,7 @@
+     sdk_morph_hud_substitute(page);
+     if(selected<8u && held_keys[14u+selected] && !shifted &&
+        !morphcapture::hud_latch.enabled && !morphcapture::hud_delay.ready(selected)) {
+-      sdk_gui_tick();cycles+=400u*250000u;sdk_gui_tick();
++      sdk_gui_tick();cycles+=400u*150000u;sdk_gui_tick();
+     }
+     opxy::platform::ScreenCursor cursor={0,4};
+     sdk_screen_next(&cursor,page);
+@@ -48,16 +48,16 @@
+     check(sdk_morph_hud_substitute!=nullptr,"HUD callback not published");
+     held_keys[14]=1;selected=0;
+     check(sdk_morph_hud_substitute(88)==0,"HUD opened before dwell");
+-    sdk_gui_tick();cycles+=400u*249999u;sdk_gui_tick();
+-    check(sdk_morph_hud_substitute(88)==0,"HUD opened before 250 ms");
++    sdk_gui_tick();cycles+=400u*149999u;sdk_gui_tick();
++    check(sdk_morph_hud_substitute(88)==0,"HUD opened before 150 ms");
+     cycles+=400u;sdk_gui_tick();
+-    check(sdk_morph_hud_substitute(88)==219,"HUD denied after 250 ms");
++    check(sdk_morph_hud_substitute(88)==219,"HUD denied after 150 ms");
+     held_keys[14]=0;sdk_gui_tick();
+     check(sdk_morph_hud_substitute(88)==0,"Released pending HUD remained visible");
+     held_keys[14]=1;sdk_gui_tick();cycles+=400u*100000u;sdk_gui_tick();
+     check(sdk_morph_hud_substitute(88)==0,"Short second hold inherited prior time");
+     held_keys[14]=0;sdk_gui_tick();sdk_morph_hud_substitute(88);
+-    held_keys[14]=1;sdk_gui_tick();cycles+=400u*250000u;sdk_gui_tick();
++    held_keys[14]=1;sdk_gui_tick();cycles+=400u*150000u;sdk_gui_tick();
+     check(sdk_morph_hud_substitute(88)==219,"Fresh hold did not open HUD");
+ 
+     frame();check(order.to==219 && sdk_morph_hud_frame_authorized(0),"Actual compositor did not authorize HUD");
+--- a/test_pad.cpp
++++ b/test_pad.cpp
+@@ -25,7 +25,7 @@
+  r.tick(8191,50000,-64,true,true);require(!r.owns && !r.armed);
+  r.tick(8191,50000,-64,true,false);require(!r.owns);
+  r.tick(0,50000,-64,true,false);r.tick(8191,50000,-64,true,false);
+- require(r.target==-61);
++ require(r.target==-60);
+  r.tick(8191,50000,12,false,false);require(!r.owns && r.target==12);
+  // Same duration at varying GUI rates, both directions, light/heavy pressure.
+  for(int sign=-1;sign<=1;sign+=2)for(int pressure=1;pressure<=8191;pressure+=819){
+@@ -36,6 +36,17 @@
+   require(a.target==b.target && a.remainder==b.remainder);
+  }
+  r.reset();r.tick(0,0,0,true,false);r.tick(2147483647,1000000,0,true,false);
+- require(r.target==3); // stalled GUI and malformed pressure bounded
++ require(r.target==4); // stalled GUI and malformed pressure bounded
++ // Inward sub-step pressure must accumulate at both exact endpoints.
++ for(int endpoint=-64;endpoint<=64;endpoint+=128){
++  r.reset(endpoint);r.tick(0,0,endpoint,true,false);
++  const int inward=endpoint<0?1:-1;
++  for(int i=0;i<200;++i)r.tick(inward*100,10000,endpoint,true,false);
++  require(inward*(r.target-endpoint)>0);
++ }
++ // Full pressure travels 96 steps per second (50% above Gate37).
++ r.reset(-64);r.tick(0,0,-64,true,false);
++ for(int i=0;i<100;++i)r.tick(8191,10000,-64,true,false);
++ require(r.target==32);
+  std::printf("PASS: %u pad ownership/rate host checks; Rate=%zu Input=%zu bytes\n",checks,sizeof(r),sizeof(input));
+ }

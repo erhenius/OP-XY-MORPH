@@ -1,10 +1,10 @@
 #include <cstdio>
 #include "display.cpp"
-static int page=1,bank=0;
-extern "C" opxy::i32 sdk_control_display(opxy::u32 i){return i==4?page:i==5?0xfc:i==6?bank:0;}
+static int page=1,bank=0,pad=0;
+extern "C" opxy::i32 sdk_control_display(opxy::u32 i){return i==4?page:i==5?0xfc:i==6?bank:i==7?(pad|(191<<8)|(2<<16)):0;}
 extern "C" bool sdk_morph_hud_snapshot_read(opxy::u32,morphcapture::hud::Snapshot* out){*out={};out->abi=morphcapture::hud::kSnapshotABI;out->captured_a=255;out->captured_b=255;out->mode=1;out->travel=32;return true;}
 int main(){
- for(int scene=0;scene<3;++scene){page=scene?2:1;bank=scene==2?1:0;
+ for(int scene=0;scene<5;++scene){page=scene>=3?3:scene?2:1;bank=scene==2?1:0;pad=scene==4?1:0;
   morphcapture::Frame f={};morphcapture::DisplayState s={};opxy::draw::Input in={};in.track=11;
   morphcapture::display(s,in,f);
   std::printf("FRAME %d\n",scene);

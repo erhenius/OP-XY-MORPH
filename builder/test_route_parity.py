@@ -6,6 +6,8 @@ s=source.read_text();a=s.index('opxy::u32 hud_readonly_screen_route(');b=s.index
 route=s[a:b]
 new='hud_gesture_allowed()' in route
 prefix='''#include <cstdio>
+#include "morph_hud_delay.hpp"
+morphcapture::HudDelay hud_delay={};
 namespace opxy {typedef unsigned u32;} using opxy::u32;
 struct HudLatch {u32 primed,track,last_tempo,last_instrument,enabled;};
 struct HudTurnInput {};
@@ -33,5 +35,5 @@ main='''int main(){
 with tempfile.TemporaryDirectory(prefix='morph-route-') as d:
  p=Path(d);(p/'test.cpp').write_text(prefix+route+main)
  compiler=shutil.which('clang++') or shutil.which('g++')
- subprocess.run([compiler,'-std=c++11',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
+ subprocess.run([compiler,'-std=c++11','-I'+str(HERE/'machine'),'-I'+str(HERE/'sdk/sdk/include'),str(p/'test.cpp'),'-o',str(p/'test')],check=True)
  raise SystemExit(subprocess.run([str(p/'test')]).returncode)

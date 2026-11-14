@@ -1,1 +1,1 @@
-Public v1.1.0 pins Gate36a. Owner reports no regressions and correct MIDI operation. Public packaging acceptance remains separate; see ../docs/VALIDATION.md.
+Public v1.2.0 / Gate39. Owner reports hardware acceptance. Archive assembly verified locally; fresh Mac acceptance pending.

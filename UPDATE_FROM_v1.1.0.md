@@ -1,0 +1,1 @@
+Back up projects and .oxy companions. Use the bundled builder with your matching private kit or verified prior job; explicitly replace Morph, calculate footprint, build and review, then stage and WRITE OS manually. Older Morph cannot load newly saved v5 banks; retain originals for rollback.

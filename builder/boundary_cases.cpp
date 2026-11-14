@@ -2,6 +2,11 @@
 static unsigned checks=0;
 void check(bool ok,const char* why){require(ok,why);++checks;}
 void frame(u32 page=88) {
+    sdk_morph_hud_substitute(page);
+    if(selected<8u && held_keys[14u+selected] && !shifted &&
+       !morphcapture::hud_latch.enabled && !morphcapture::hud_delay.ready(selected)) {
+      sdk_gui_tick();cycles+=400u*150000u;sdk_gui_tick();
+    }
     opxy::platform::ScreenCursor cursor={0,4};
     sdk_screen_next(&cursor,page);
 }
@@ -42,7 +47,19 @@ int main() {
     check(!sdk_morph_stored_once_submit(0,0,123),"Out-of-callback write accepted");
     check(sdk_morph_hud_substitute!=nullptr,"HUD callback not published");
     held_keys[14]=1;selected=0;
-    check(sdk_morph_hud_substitute(88)==219,"HUD denied AFTER callback despite valid captured session");
+    check(sdk_morph_hud_substitute(88)==0,"HUD opened before dwell");
+    sdk_gui_tick();cycles+=400u*149999u;sdk_gui_tick();
+    check(sdk_morph_hud_substitute(88)==0,"HUD opened before 150 ms");
+    cycles+=400u;sdk_gui_tick();
+    check(sdk_morph_hud_substitute(88)==219,"HUD denied after 150 ms");
+    held_keys[14]=0;sdk_gui_tick();
+    check(sdk_morph_hud_substitute(88)==0,"Released pending HUD remained visible");
+    held_keys[14]=1;sdk_gui_tick();cycles+=400u*100000u;sdk_gui_tick();
+    check(sdk_morph_hud_substitute(88)==0,"Short second hold inherited prior time");
+    held_keys[14]=0;sdk_gui_tick();sdk_morph_hud_substitute(88);
+    held_keys[14]=1;sdk_gui_tick();cycles+=400u*150000u;sdk_gui_tick();
+    check(sdk_morph_hud_substitute(88)==219,"Fresh hold did not open HUD");
+
     frame();check(order.to==219 && sdk_morph_hud_frame_authorized(0),"Actual compositor did not authorize HUD");
     morphcapture::hud::Snapshot snap={};
     const u32 queries_before=block_queries;
@@ -512,6 +529,72 @@ int main() {
      check(!state.mode && !morphcapture::midi_input.owns,"Explicit fault recovery did not clear MIDI takeover");
      std::printf("Gate36 new POD state: MIDI controller=%zu, SDK mailbox=%zu, epoch=%zu bytes\n",
        sizeof(morphcapture::midi_input),sizeof(morph_midi),sizeof(morph_midi_epoch));
+    }
+    // Gate37: real SDK/controller route; calibrated sensor and stock pitch
+    // publication are host doubles. This does not establish hardware response.
+    {
+     selected=11;pad_pressure=0;page_key=1;sdk_gui_tick();
+     if(state.mode){capture(3);drain();}
+     capture(3);drain();check(state.mode,"Pad test activation failed");
+     page_key=3;sdk_gui_tick();
+     check(morphcapture::aux_page==3,"M3 page not selected");
+     aux_events.click(0);sdk_gui_tick();
+     check(morphcapture::pad_enabled && morph_pad.owned,"M3 did not enable physical ownership");
+     morphcapture::DisplayState pd={};opxy::draw::Input pi={};morphcapture::Frame pf={};pi.track=11;
+     morphcapture::display(pd,pi,pf);
+     check(opxy::draw::valid(pf) && std::strcmp(pf.texts[22].chars,"MORPH")==0,"M3 render disagrees with mode");
+     const u32 stock_before=pad_stock_calls,record_before=host_recorded;host_recording=true;
+     pad_pressure=8191;sdk_morph_pad_event(123,0,pad_pressure,0);
+     for(u32 i=0;i<100;++i){cycles+=400u*20000u;sdk_gui_tick();}
+     check(state.travel==64 && !state.fault,"Pad did not reach B across bounded transactions");
+     for(u32 t=0;t<8;++t)for(u32 k=0;k<26;++k)
+      check(static_cast<i32>(bases[t][morphcapture::slots[k]])==state.scene[1][t][k],"Pad starved a destination at B");
+     check(pad_stock_calls==stock_before,"Morph pad reached stock pitch setter");
+     check(host_recorded==record_before,"Pad movement created automation");host_recording=false;
+     pad_pressure=0;sdk_morph_pad_event(123,0,0,0);sdk_gui_tick();drain();
+     const i32 held=state.travel;
+     for(u32 i=0;i<10;++i){cycles+=400u*20000u;sdk_gui_tick();}
+     check(state.travel==held && morphcapture::pad_input.owns,"Release lost latched movement");
+     sdk_morph_midi_cc(11,15,0);sdk_gui_tick();drain();
+     check(state.travel==-64 && !morphcapture::pad_input.owns,"CC15 did not take over pad");
+     // Mute blocks progress and requires release before rearming.
+     project_bytes[0x98+16+11]|=2u;pad_pressure=8191;sdk_morph_pad_event(123,0,pad_pressure,0);
+     const i32 muted_travel=state.travel;
+     cycles+=400u*50000u;sdk_gui_tick();
+     check(state.travel==muted_travel && !morphcapture::pad_input.owns,"Muted pad moved");
+     project_bytes[0x98+16+11]&=~2u;sdk_gui_tick();
+     check(!morphcapture::pad_input.owns,"Unmute armed held pad");
+     pad_pressure=0;sdk_morph_pad_event(123,0,0,0);sdk_gui_tick();
+     // Mode switching while pressed drains only the old physical gesture.
+     pad_pressure=8191;sdk_morph_pad_event(123,0,pad_pressure,0);
+     aux_events.click(0);sdk_gui_tick();
+     check(!morphcapture::pad_enabled && morph_pad.owned,"Held mode change did not wait for release");
+     pad_pressure=0;sdk_morph_pad_event(123,0,0,0);
+     check(!morph_pad.owned && pad_stock_calls==stock_before,"Morph release modified stock pitch");
+     pad_pressure=500;sdk_morph_pad_event(123,0,pad_pressure,0);
+     check(pad_stock_calls==stock_before+1,"PITCH did not forward physical input");
+     aux_events.click(0);sdk_gui_tick();check(!morph_pad.owned,"Held pitch switched ownership early");
+     pad_pressure=0;sdk_morph_pad_event(123,0,0,0);sdk_gui_tick();
+     check(morph_pad.owned && pad_stock_calls==stock_before+2,"Stock release not delivered before takeover");
+     for(u32 k=0;k<35;++k){aux_events.turn(1,0x1000000);sdk_gui_tick();}
+     check(morphcapture::pad_sensitivity==35,"K2 sensitivity failed");
+     for(u32 k=0;k<65;++k){aux_events.turn(1,0x1000000);sdk_gui_tick();}
+     check(morphcapture::pad_sensitivity==100,"K2 skipped numeric upper bound");
+     aux_events.turn(1,0x1000000);sdk_gui_tick();check(morphcapture::pad_sensitivity==101,"K2 did not reach INSTANT");
+     aux_events.turn(1,-0x1000000);sdk_gui_tick();check(morphcapture::pad_sensitivity==100,"INSTANT did not reverse to +100");
+     for(u32 k=0;k<65;++k){aux_events.turn(1,-0x1000000);sdk_gui_tick();}
+     aux_events.turn(2,0x1000000);sdk_gui_tick();check(morphcapture::pad_curve==2,"K3 did not select EXP");
+     opxy::u8 saved[morphcapture::kSavedBytes]={};
+     check(morphcapture::control_save(state,saved,sizeof saved)==sizeof saved,"Pad mode save failed");
+     morphcapture::control_load(state,saved,sizeof saved);sdk_gui_tick();
+     check(morphcapture::pad_sensitivity==35 && morphcapture::pad_curve==2,"Sensitivity/curve did not persist");
+     check(morphcapture::pad_enabled && !state.mode && !morphcapture::pad_input.owns,"Saved mode restored unsafe movement");
+     morphcapture::put32(saved+4,2);morphcapture::put32(saved+28,morphcapture::get32(saved+28)&0xff01u);
+     morphcapture::put32(saved+sizeof saved-4,morphcapture::saved_checksum(saved,sizeof saved-4));
+     morphcapture::control_load(state,saved,sizeof saved);sdk_gui_tick();
+     check(!morphcapture::pad_enabled && morphcapture::pad_sensitivity==0 && morphcapture::pad_curve==1,"Old bank did not default to neutral settings");
+     std::printf("Gate37 POD additions: rate=%zu mode=%zu input=%zu HUD delay=%zu bytes; payload=%u\n",
+       sizeof(morphcapture::pad_input),sizeof(morphcapture::pad_enabled),sizeof(morph_pad),sizeof(morphcapture::hud_delay),morphcapture::kSavedBytes);
     }
     std::printf("Gate33 additional state: %zu; page/bank/last-LFO statics: %zu; payload %u bytes\n",
       sizeof(state)-4404u,sizeof(morphcapture::aux_page)+sizeof(morphcapture::route_bank)+sizeof(morphcapture::lfo_was_active),morphcapture::kSavedBytes);

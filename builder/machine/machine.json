@@ -2,5 +2,5 @@
   "schema": 1,
   "sdk": "1.15",
   "kind": "synth",
-  "description": "Morph Gate36a development: channel 12 CC15 movement with 63/64 origin deadband; Gate35 AUX designs retained"
+  "description": "Morph Gate39 development: optional onboard pitch-pad rate movement, M3 mode selection and 150 ms HUD hold; Gate36a MIDI retained"
 }

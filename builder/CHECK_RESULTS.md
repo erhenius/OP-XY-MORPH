@@ -1,21 +1,17 @@
-# Gate36 MIDI checks
+# Gate39 — pad speed and response curves
 
-- Actual SDK/controller/compositor/display integration: **17,105 assertions PASS**. Stock functions, recorder and MIDI sender are host models; wire reception/native execution is not simulated as hardware acceptance.
-- Covers all 128 mapped values, exact 0/63/64/127 positions, filtering/delegation, non-Morph ownership, unselected tracks, continuous/enum SHIFT, snapshots unchanged, destination locks, M2 masks, a 10,000-event coalescing burst, unchanged targets, LFO/playback takeover, physical priority, bypass/mute, context loss, save/load and explicit failure recovery.
-- SDK track-control: **16 tests PASS with private stock input supplied**, including exact hook bytes/offset/original branch target and the existing optional-service tests. No firmware output was generated.
-- Actual M1 fallback and route parity: PASS. Source boundary, SVG and generated host adapters: PASS. Machine sound host test: 1 PASS.
-- Reconstruction experiment: the new manager exactly reconstructed an existing private 41-machine image using its matching old kit/legacy decoder. This was local read/build analysis only; it does not prove reconstruction of every Gate35 installation. Frozen Gate35 decoder/source pins are included.
-- Manager/import/cache/runtime/update suite: 33 tests PASS with the external private runtime fixture.
-- Full sdk.py check: **545 tests; 18 failures, 15 errors, 38 skips**. NOT GREEN. Current log: SDK_CHECK_GATE36.log. Includes missing Git context and private output/transfer/release fixture restrictions; no blanket baseline-equivalence claim. The new private-input hook test passes separately; it is skipped in that no-private-input full run.
-- Profile delta checked structurally: exactly one optional four-byte CC-dispatch hook. Compiler pins, stock hashes, 4 MiB reservation, display resources and saved-bank size unchanged. The new profile digest authenticates the explicit fork addition; old profiles remain separately pinned for reconstruction.
-- New identified static POD storage: 24 bytes before linker padding. ControlState 4408; saved payload 5684, unchanged.
-- Authenticated native compiler unavailable on this host. No native compilation/allocation, real MIDI/port/GUI latency, CPU measurement or hardware acceptance is claimed. MIDI.md lists outstanding checks. No device staged or written.
+M3 K1 selects PITCH/MORPH. K2 ranges from -90% to +100% in bounded 1% directional steps, then INSTANT on the next clockwise turn. Turn counterclockwise from INSTANT to +100%. Default is 0%, the accepted Gate37a response. Fast events coalesced within a GUI tick change the setting once; stock scaled deltas are no longer misread as percentage points.
 
+K3 selects SQRT, LINEAR (default), EXP. SQRT boosts light pressure. EXP gives finer slow movement at light pressure and increases steeply toward maximum. Curves act on stock-calibrated pressure; stock's own calibration is retained. K2 scales speed after shaping. INSTANT ignores the curve and requests A/B on any nonzero pad push while armed and LIVE. The guarded scheduler still completes destination writes; this is not an unguarded simultaneous write. Release holds position. Mute, BYPASS, release-to-arm and manual/MIDI priority remain applicable. K2/K3 presses do nothing.
 
-## Gate36a correction
+EXP approximates (2^(4x)-1)/15 with 16 linearly interpolated intervals. SQRT uses a bounded integer square root. Both have exact zero/full endpoints and monotonic output. No floating point, allocation or audio callbacks added.
 
-- Explicit MIDI-hook assembler export binding added; no firmware profile/stock/compiler hash changed from Gate36.
-- Actual integration harness: 17,105 assertions PASS; M1/route-parity PASS.
-- SDK track-control: 17 tests PASS with private stock input, including a host -fleading-underscore export regression. On hosts lacking that compiler option the model explicitly skips; this is not a native ABI execution test.
-- Owner log establishes native compilation/GNU parity and 3,803,576 allocated bytes for the earlier Gate36 attempt, followed by failure at hook-symbol resolution. Corrected native build/final verification remains pending.
-- Gate36a full SDK check: 546 tests; 18 failures, 15 errors, 38 skips. NOT GREEN. See SDK_CHECK_GATE36a.log. Native and device acceptance remain pending.
+The K2 defect was a unit mismatch: raw stock parameter deltas were added directly to the percentage setting, saturating it. Host tests now use large raw deltas and verify intermediate values, +100, INSTANT and counterclockwise exit.
+
+24,635 pad host checks and 17,346 SDK/controller integration assertions PASS. Includes exhaustive curve monotonicity/bounds, instant endpoints, K2 range and K3 persistence. M1 and route parity PASS. Visual M3 host render inspected. Stock/sensor behavior remains modelled on host; Gate39 native build and hardware acceptance pending.
+
+Save format v5 retains 5684 bytes. v1-v3 load with 0%/LINEAR; v4 preserves sensitivity and defaults to LINEAR. Bounds are validated. Earlier software rejects v5 banks: retain original project companions for rollback. Compared with Gate38, new declared storage is a 4-byte curve setting plus a 68-byte constant table, before linker optimization/alignment. Native linked allocation unmeasured.
+
+SDK hooks, firmware profile and protected reservation unchanged. Full SDK results in the package are inherited evidence, not a fresh full-suite run. No firmware staged. Gate37a remains the accepted rollback; Gate38 source is also preserved.
+
+Historical SDK results: SDK_CHECK_GATE37.log (non-green: 18 failures, 15 errors).

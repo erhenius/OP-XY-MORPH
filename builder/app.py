@@ -8,7 +8,7 @@ from imports import extract,discover
 import catalog
 class App:
  def __init__(self,root):
-  self.root=root;root.title('Morph v1.1.0 / XY Machine Manager');root.geometry('1050x760');self.events=queue.Queue();self.busy=False;self.scanned=False;self.memory_token=None;self.rows=[];self.selected=[];self.update_morph=tk.BooleanVar(value=False);self.builder=Builder(lambda x:self.events.put(('log',x)));root.protocol('WM_DELETE_WINDOW',self.close)
+  self.root=root;root.title('Morph v1.2.0 / XY Machine Manager');root.geometry('1050x760');self.events=queue.Queue();self.busy=False;self.scanned=False;self.memory_token=None;self.rows=[];self.selected=[];self.update_morph=tk.BooleanVar(value=False);self.builder=Builder(lambda x:self.events.put(('log',x)));root.protocol('WM_DELETE_WINDOW',self.close)
   p=ttk.Frame(root,padding=14);p.pack(fill='both',expand=True)
   ttk.Label(p,text='Add machines to your OP-XY',font=('',20,'bold')).pack(anchor='w')
   ttk.Label(p,text='1. Scan setup   2. Select additions   3. Build and review   4. Stage → WRITE OS').pack(anchor='w',pady=8)
@@ -18,8 +18,8 @@ class App:
   controls=ttk.Frame(p);controls.pack(fill='x',pady=8)
   for text,fn in [('Scan XY',self.scan),('Load saved setup',self.offline),('Calculate footprint',self.calculate),('Refresh catalog',self.refresh),('Import ZIP',self.zip),('Import folder',self.folder),('Add selected',self.add),('Clear additions',self.clear),('Build',self.build),('Cancel',self.cancel)]:ttk.Button(controls,text=text,command=fn).pack(side='left')
   row=ttk.Frame(p);row.pack(fill='x')
-  ttk.Button(row,text='Install bundled Morph (Morph v1.1.0 (Gate36a))',command=self.install_morph).pack(side='left')
-  ttk.Checkbutton(row,text='Replace installed Morph with bundled Morph v1.1.0 (Gate36a)',variable=self.update_morph,command=self.selection_changed).pack(side='left',padx=12)
+  ttk.Button(row,text='Install bundled Morph (Morph v1.2.0 (Gate39))',command=self.install_morph).pack(side='left')
+  ttk.Checkbutton(row,text='Replace installed Morph with bundled Morph v1.2.0 (Gate39)',variable=self.update_morph,command=self.selection_changed).pack(side='left',padx=12)
   self.memory_text=tk.StringVar(value='Memory: scan or load a saved setup')
   ttk.Label(p,textvariable=self.memory_text,wraplength=1000).pack(anchor='w',pady=6)
   self.memory_bar=tk.Canvas(p,height=22,highlightthickness=0);self.memory_bar.pack(fill='x')
@@ -125,7 +125,7 @@ class App:
    self.work('build',self.builder.finalize_calculated);return
   if self.builder.job and (self.builder.job/'sources').exists():messagebox.showinfo('Scan again','Start a fresh scan before rebuilding.');return
   update=self.update_morph.get()
-  if update and not messagebox.askyesno('Replace Morph?', 'Rebuild with bundled Morph v1.1.0 (Gate36a) Morph while preserving its existing IDs? This is an explicit replacement, not automatic version detection. A fresh memory check and SDK backup apply.'):return
+  if update and not messagebox.askyesno('Replace Morph?', 'Rebuild with bundled Morph v1.2.0 (Gate39) Morph while preserving its existing IDs? This is an explicit replacement, not automatic version detection. A fresh memory check and SDK backup apply.'):return
   self.work('build',lambda:self.builder.build_selected(list(self.selected),update_morph=update))
  def stage(self):
   if self.busy:return

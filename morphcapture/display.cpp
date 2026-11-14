@@ -13,6 +13,31 @@ inline void aux_face(Frame& frame) {
  morph_hud::State neutral={};neutral.enter_m2(11u);
  morph_hud::render(frame,empty,neutral,false,false,false,false,0u);
  opxy::draw::place(frame,7u,0,0,opxy::draw::unit,0u,opxy::draw::keep);
+ if(opxy::control::from_control(4u)==3) {
+  for(u32 n=0;n<8;++n)opxy::draw::place(frame,53+n,static_cast<i32>(n)*60*opxy::draw::unit,0,opxy::draw::unit,0,opxy::draw::keep);
+  for(u32 i=18;i<27;++i)opxy::draw::text(frame,i,640*opxy::draw::unit,320*opxy::draw::unit,opxy::draw::unit,"");
+  for(u32 i=0;i<4;++i)opxy::draw::header(frame,i,i==0?"Pad":i==1?"Sensitivity":i==2?"Curve":"");
+  opxy::draw::text(frame,27,10*opxy::draw::unit,15*opxy::draw::unit,opxy::draw::unit,"Pad");
+  const u32 pad_status=static_cast<u32>(opxy::control::from_control(7u));
+  const bool enabled=(pad_status&1u)!=0;
+  opxy::draw::text(frame,28,130*opxy::draw::unit,15*opxy::draw::unit,opxy::draw::unit,"Sensitivity");
+  const i32 sensitivity=static_cast<i32>((pad_status>>8u)&255u)-90;
+  opxy::draw::text(frame,29,250*opxy::draw::unit,15*opxy::draw::unit,opxy::draw::unit,"Curve");
+  const u32 response=(pad_status>>16u)&3u;
+  opxy::draw::text(frame,26,258*opxy::draw::unit,78*opxy::draw::unit,opxy::draw::unit,response==0?"SQRT":response==2?"EXP":"LINEAR");
+  const u32 magnitude=static_cast<u32>(sensitivity<0?-sensitivity:sensitivity);
+  char percent[8]={};u32 at=0;
+  if(sensitivity)percent[at++]=sensitivity<0?'-':'+';
+  if(magnitude>=100)percent[at++]='1';
+  if(magnitude>=10)percent[at++]=static_cast<char>('0'+(magnitude/10)%10);
+  percent[at++]=static_cast<char>('0'+magnitude%10);percent[at++]='%';
+  opxy::draw::text(frame,25,130*opxy::draw::unit,78*opxy::draw::unit,opxy::draw::unit,sensitivity==101?"INSTANT":percent);
+  opxy::draw::text(frame,22,35*opxy::draw::unit,78*opxy::draw::unit,opxy::draw::unit,enabled?"MORPH":"PITCH");
+  opxy::draw::text(frame,23,35*opxy::draw::unit,127*opxy::draw::unit,opxy::draw::unit,enabled?"Pressure = speed":"Stock pitch bend");
+  opxy::draw::text(frame,24,35*opxy::draw::unit,179*opxy::draw::unit,opxy::draw::unit,(pad_status&2u)?"Release to switch":enabled?"Release holds position":"K1 selects pad mode");
+  for(u32 n=61;n<63;++n)opxy::draw::place(frame,n,304*opxy::draw::unit,119*opxy::draw::unit,opxy::draw::unit,0,opxy::draw::keep);
+  return;
+ }
  if(opxy::control::from_control(4u)==2) {
   const u32 bank=static_cast<u32>(opxy::control::from_control(6u))&1u;
   const u32 mask=static_cast<u32>(opxy::control::from_control(5u));

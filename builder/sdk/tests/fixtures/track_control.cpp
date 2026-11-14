@@ -236,7 +236,12 @@ const opxy::platform::ControlMachine sdk_control_machines[] = {
 const opxy::u32 sdk_control_machine_count = 3;
 }
 
+static opxy::i32 pad_pressure=0;
+static opxy::u32 pad_stock_calls=0;
+void stock_pad(opxy::u32,opxy::u32,opxy::i32,opxy::u32){++pad_stock_calls;}
 opxy::platform::Address opxy::platform::host_stock_address(opxy::platform::Address address) {
+    if(address==0x840ab680)return reinterpret_cast<Address>(&pad_pressure);
+    if(address==0x8d5974e0)return reinterpret_cast<Address>(&stock_pad);
     if (address >= kLive && address < kLive + sizeof(table))
         return reinterpret_cast<Address>(table) + (address - kLive);
     if (address == 0x8d580074) return reinterpret_cast<Address>(&stock_tick);

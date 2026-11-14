@@ -1,11 +1,17 @@
-# Morph v1.1.0 Mac builder
+# Morph v1.2.0 — pressure-pad movement
 
-This is XY Machine Manager bundled with the Gate36a Morph machine and patched SDK 1.15 source. See ../README.md and ../docs/BUILDING.md.
+Pinned to Gate39. The owner confirms no regressions and correct feature operation on hardware.
 
-The public package excludes reference-kit.json and all personal compiled objects. Choose your own matching kit.json outside this repository before scanning/building. The selected private kit supplies the SDK-validated arithmetic runtime fallback. No authentication or allocation safeguards are disabled.
+- AUX M3 K1: stock PITCH or MORPH pad mode.
+- K2: speed -90% through +100%, then INSTANT; bounded intermediate steps.
+- K3: SQRT / LINEAR / EXP pressure response.
+- Release holds position; INSTANT requests full A/B from a directional push.
+- Mode changes wait for release. Settings save with snapshots in the project companion.
+- Held instrument HUD delay is 150 ms; exact-endpoint reversal fixed.
+- MIDI channel 12 CC15, automation, routing, locks and existing controls retained.
 
-Requires Python 3.11+ with Tk, Node.js 22.12+, Git, a host C++ compiler, LLVM Clang with wasm32/wasm-ld, and the SDK's authenticated Blackfin toolchain. The app can fetch its pinned native toolchain when needed; see the SDK's build documentation.
+Older snapshot formats load with compatible defaults. This release saves v5 banks; older releases reject them. Preserve original project/companion copies for rollback. v1.1.0 remains available unchanged.
 
-Run Open_XY_Machine_Manager.command or python3.12 app.py. Scan the XY in MTP file-transfer (Mac) mode; close other apps using it. Select install/explicit Morph replacement, calculate footprint, build and review. Stage only after reviewing the verified result. WRITE OS remains manual on the device.
+The release contains source, macOS builder and an updated illustrated quick reference. Supply your own firmware and compatible private kit/provenance. No OS image, private kit or user projects included. Every native build must independently verify reconstruction and the protected 4 MiB allocation before staging. WRITE OS stays manual.
 
-Reads/builds do not write the device. Staging uses SDK backups/readback and a fresh device baseline check. Unknown source/layout reconstruction is rejected. Keep private firmware, kits, projects and transfer/build jobs outside the repository.
+Host verification: 24,635 pad checks, 17,346 integration assertions, M1 and route parity pass. The inherited full SDK suite remains non-green (18 failures, 15 errors); logs included. Hardware acceptance is the owner's report, not independently measured here. CPU profiling remains unmeasured; upstream catalog approval is not claimed. Fresh acceptance of this exact public archive remains pending.

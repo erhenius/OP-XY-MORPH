@@ -4,6 +4,9 @@
 #include <opxy/morph_store_bridge.hpp>
 #include "morph_automation.hpp"
 #include "morph_midi.hpp"
+#include "morph_pad.hpp"
+#include <opxy/morph_pad_input.hpp>
+#include "morph_hud_delay.hpp"
 #include <opxy/morph_midi_input.hpp>
 #include "morph_logic.hpp" // exact V1 Q31 math, no 64-bit linker helper
 #include <opxy/morph_hud_contract.hpp>
@@ -66,6 +69,7 @@ static u32 aux_diag_ticks=0u,aux_diag_clicks=0u,aux_diag_turns=0u;
 
 struct HudLatch { u32 primed, track, last_tempo, last_instrument, enabled; };
 static HudLatch hud_latch={};
+static HudDelay hud_delay={};
 static u32 hud_track_seen_unshifted=0u,hud_track_first_shift=0u; // zero-initialized, not a C++ object constructor
 // Extra GUI-only edit state does not duplicate A/B/S controller snapshots.
 struct HudTurnInput {
@@ -134,7 +138,7 @@ inline HudTurnInput take_hud_turn_input() {
 void hud_physical_observe(bool visible,u32 track);
 
 inline void hud_latch_reset() {
- hud_latch=HudLatch{};
+ hud_latch=HudLatch{};hud_delay.reset();
  hud_frame_authorized_track=0xffffffffu;
 }
 // Called by SDK only *after* compositor ScreenOrder has selected the registered
@@ -205,6 +209,10 @@ static u32 scramble_pending=0u;
 static bool startup_captured=false;
 static automation::Lane movement_lane={};
 static midi::State midi_input={};
+static pad::Rate pad_input={};
+static bool pad_enabled=false;
+static i32 pad_sensitivity=0;
+static u32 pad_curve=1u;
 static i32 recorded_origin[8][34]={};
 static bool recorded_reference=false, transport_playing=false;
 static opxy::morphport::ShiftSchema restored_schema[8]={};
@@ -341,7 +349,7 @@ opxy::u32 hud_readonly_screen_route(opxy::u32 selected_page) {
     // V1 latch follows track selection; queued motion and chord history do not.
     hud_frame_authorized_track=0xffffffffu;hud_turn_input=HudTurnInput{};hud_bank_focus=0u;
     hud_track_seen_unshifted=hud_track_first_shift=0u;
-    hud_latch.primed=1u;hud_latch.track=track;
+    hud_delay.reset();hud_latch.primed=1u;hud_latch.track=track;
  }
  if(instrument && !hud_latch.last_instrument)hud_latch.enabled=0u;
  // V1's global SHIFT+TEMPO latch does not require a held track or an old frame grant.
@@ -354,12 +362,13 @@ opxy::u32 hud_readonly_screen_route(opxy::u32 selected_page) {
  else if(hud_track_seen_unshifted)hud_track_first_shift=1u;
  // SHIFT-first track gestures remain stock-owned even while latch is enabled.
  if(selected_page==0u || selected_page==219u || instrument ||
-    !hud_gesture_allowed())return 0u;
+    !hud_gesture_allowed()){hud_delay.reset();return 0u;}
+ if(!hud_latch.enabled && !hud_delay.ready(track))return 0u;
  return 219u;
 }
 void control_reset(ControlState& s) {
  midi_input.reset();sdk_morph_midi_clear();
- aux_page=1u;route_bank=0u;lfo_was_active=false;s.active_tracks=255u;
+ aux_page=1u;route_bank=0u;lfo_was_active=false;pad_enabled=false;pad_sensitivity=0;pad_curve=1u;pad_input.reset();sdk_morph_pad_request(false);s.active_tracks=255u;
  scramble_pending=0u;startup_captured=false;restored_pending=false;recorded_reference=false;transport_playing=false;movement_lane.reset();
  sdk_morph_gui_turns_reset();
  aux_probe=0;
@@ -428,9 +437,9 @@ u32 control_save(const ControlState& s,opxy::u8* data,u32 capacity) {
     !sdk_morph_view_context_ok())return 0;
  opxy::morphport::ShiftSchema schema[8]={};u32 patterns[10]={};
  if(!sdk_morph_persist_identity(schema,patterns))return 0;
- put32(data,0x3233524du);put32(data+4,2u);put32(data+8,kSavedBytes);
+ put32(data,0x3233524du);put32(data+4,5u);put32(data+8,kSavedBytes);
  put32(data+12,s.captured_mask[0]);put32(data+16,s.captured_mask[1]);
- put32(data+20,s.base_ready);put32(data+24,s.origin_ready);put32(data+28,(recorded_reference?1u:0u)|(s.active_tracks<<8u));
+ put32(data+20,s.base_ready);put32(data+24,s.origin_ready);put32(data+28,(recorded_reference?1u:0u)|(s.active_tracks<<8u)|(pad_enabled?0x10000u:0u)|(static_cast<u32>(pad_sensitivity+90)<<17u)|(pad_curve<<25u));
  u32 at=32u;
  for(u32 i=0;i<10u;++i){put32(data+at,patterns[i]);at+=4u;}
  for(u32 t=0;t<8u;++t){
@@ -447,11 +456,13 @@ u32 control_save(const ControlState& s,opxy::u8* data,u32 capacity) {
 }
 void control_load(ControlState& s,const opxy::u8* data,u32 bytes) {
  control_reset(s);
- if(!data || bytes!=kSavedBytes || get32(data)!=0x3233524du || (get32(data+4)!=1u && get32(data+4)!=2u) ||
+ if(!data || bytes!=kSavedBytes || get32(data)!=0x3233524du || (get32(data+4)<1u || get32(data+4)>5u) ||
     get32(data+8)!=bytes || get32(data+bytes-4u)!=saved_checksum(data,bytes-4u) ||
     get32(data+12)>255u || get32(data+16)>255u || get32(data+20)!=1u ||
     get32(data+24)>1u ||
-    (get32(data+28)&(get32(data+4)==1u?~1u:~0xff01u)))return;
+    (get32(data+28)&(get32(data+4)==1u?~1u:get32(data+4)==2u?~0xff01u:get32(data+4)==3u?~0x1ff01u:get32(data+4)==4u?~0x1ffff01u:~0x7ffff01u)))return;
+ if(get32(data+4)==4u && ((get32(data+28)>>17u)&255u)>180u)return;
+ if(get32(data+4)==5u && (((get32(data+28)>>17u)&255u)>191u || ((get32(data+28)>>25u)&3u)>2u))return;
  // Validate complete payload before publishing any snapshot value.
  const u32 values=240u;
  for(u32 at=values;at<bytes-4u;at+=4u)if(get32(data+at)>0x7fffffffu)return;
@@ -481,6 +492,9 @@ void control_load(ControlState& s,const opxy::u8* data,u32 bytes) {
  s.captured_mask[0]=get32(data+12);s.captured_mask[1]=get32(data+16);
  s.base_ready=1u;s.origin_ready=get32(data+24);recorded_reference=(get32(data+28)&1u)!=0u;
  s.active_tracks=get32(data+4)==1u?255u:(get32(data+28)>>8u)&255u;restored_pending=true;
+ pad_enabled=get32(data+4)>=3u && (get32(data+28)&0x10000u);
+ pad_sensitivity=get32(data+4)>=4u?static_cast<i32>((get32(data+28)>>17u)&255u)-90:0;
+ pad_curve=get32(data+4)==5u?(get32(data+28)>>25u)&3u:1u;
 }
 inline bool capture(ControlState& s,u32 side) {
  if(side>1u || !read_all(candidate))return false;
@@ -554,7 +568,7 @@ inline i32 desired(const ControlState& s,u32 t,u32 i) {
  return opxy::morph::interpolate(s.origin[t][i],s.scene[side][t][i],fraction);
 }
 inline void schedule(ControlState& s,bool bypass) {
- if(bypass){movement_lane.bypass();midi_input.reset();sdk_morph_midi_clear();}
+ if(bypass){pad_input.reset(s.travel);movement_lane.bypass();midi_input.reset();sdk_morph_midi_clear();}
  s.target_bypass=bypass?1u:0u;s.phase=sending;s.cursor=0u;s.fault=0u;
 }
 inline bool activate(ControlState& s) {
@@ -680,6 +694,14 @@ inline void hud_apply_turns(ControlState& s,const HudTurnInput& input,bool muted
  }
 }
 void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
+ const u32 delay_track=sdk_morph_gui_track();
+ const bool delay_eligible=delay_track<8u && sdk_morph_gui_ready() &&
+   !in.muted && sdk_morph_view_context_ok() && !sdk_morph_other_track_held(delay_track) &&
+   sdk_morph_track_held(delay_track) &&
+   (!sdk_morph_gui_shift_held() || hud_track_seen_unshifted || hud_track_first_shift) &&
+   !sdk_morph_gui_key_down(2u);
+ hud_delay.observe(delay_track,delay_eligible,in.elapsed_us);
+
  transport_playing=in.transport.playing;
  u32 clicks=0; i32 turns[4]={0,0,0,0};
  sdk_morph_aux_events_take(in.track,&clicks,turns);
@@ -704,7 +726,7 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  if(!in.muted && !startup_captured && !capture_startup(s)) {
   clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
  }
- if(in.muted){u32 discarded=0u;(void)sdk_morph_midi_take(&discarded);midi_input.ready=false;}
+ if(in.muted){pad_input.reset(s.travel);u32 discarded=0u;(void)sdk_morph_midi_take(&discarded);midi_input.ready=false;}
  const u32 scrambled=scramble_pending;
  if(scrambled && s.context_ready) {
   midi_input.reset();sdk_morph_midi_clear();
@@ -728,9 +750,22 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  if(feedback && s.phase!=idle){s.fault=5u;s.phase=failed;}
  // BRAIN-style routing: any click banks, signed turns disable/enable.
  // Page changes consume old queued gestures; a turn never changes meaning.
- if(in.page_key==1u || in.page_key==2u) {
+ if(in.page_key>=1u && in.page_key<=3u) {
   aux_page=in.page_key;clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
  }
+ if(aux_page==3u) {
+  const bool before=pad_enabled;
+  if(clicks&1u)pad_enabled=!pad_enabled;
+  if(turns[0])pad_enabled=turns[0]>0;
+  if(before!=pad_enabled)pad_input.reset(s.travel);
+  pad_sensitivity+=turns[1]>0?1:turns[1]<0?-1:0;
+  if(pad_sensitivity>101)pad_sensitivity=101;
+  if(turns[2]>0 && pad_curve<2u)++pad_curve;
+  if(turns[2]<0 && pad_curve>0u)--pad_curve;
+  if(pad_sensitivity< -90)pad_sensitivity=-90;
+  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+ }
+ sdk_morph_pad_request(pad_enabled && s.context_ready && !scrambled);
  if(aux_page==2u) {
   const u32 before=s.active_tracks;
   if(clicks){route_bank^=1u;for(u32 k=0;k<4u;++k)turns[k]=0;}
@@ -788,14 +823,25 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
   const bool midi_received=sdk_morph_midi_take(&midi_cc);
   const bool physical_movement=turns[3] || (clicks&15u) || pending_hud.action ||
       (turns_hud.k4_held && turns_hud.steps[3]);
+  i32 pressure=0;
+  const bool pad_available=sdk_morph_pad_read(&pressure);
+  pad_input.tick(pressure,in.elapsed_us,s.travel,
+      pad_available && s.mode && !movement_lane.blocked && s.phase!=failed,
+      physical_movement || midi_received,pad_sensitivity,pad_curve);
+  if(pad_input.owns) {
+   midi_input.reset();
+   if(s.phase==idle && s.travel!=pad_input.target) {
+    s.travel=pad_input.target;schedule(s,false);
+   }
+  }
   if(midi_received && !physical_movement && s.mode && !in.muted &&
      !movement_lane.blocked && movement_allowed(s))midi_input.offer(midi_cc);
   if(s.mode && !in.muted && midi_input.ready && s.phase==idle && !movement_lane.blocked) {
    midi_input.ready=false;
    if(s.travel!=midi_input.target){s.travel=midi_input.target;schedule(s,false);}
   }
-  const bool lfo_active=!midi_input.owns && s.mode && s.phase==idle && !movement_lane.blocked && sdk_morph_movement_lfo_active();
-  if(!midi_input.owns && !turns[3] && s.mode && s.phase==idle && !movement_lane.blocked &&
+  const bool lfo_active=!pad_input.owns && !midi_input.owns && s.mode && s.phase==idle && !movement_lane.blocked && sdk_morph_movement_lfo_active();
+  if(!pad_input.owns && !midi_input.owns && !turns[3] && s.mode && s.phase==idle && !movement_lane.blocked &&
      (lfo_active || lfo_was_active)) {
    // Finish every complete transaction before sampling a new target. No
    // oscillator runs here: stock supplies the modulated, bounded movement.
@@ -804,7 +850,7 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
    lfo_was_active=lfo_active;
   }
   i32 playback_travel=s.travel;
-  if(!midi_input.owns && !lfo_active && !turns[3] && s.mode && recorded_reference && s.phase==idle &&
+  if(!pad_input.owns && !midi_input.owns && !lfo_active && !turns[3] && s.mode && recorded_reference && s.phase==idle &&
      sdk_morph_movement_has_locks() &&
      movement_lane.observe(in.values[11u][3u],in.transport.playing,in.muted!=0u,playback_travel)) {
    if(recorded_reference){
@@ -819,6 +865,7 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
    else verify_tick(s);
   }
  }
+ out.display[7]=(pad_enabled?1:0)|(sdk_morph_pad_waiting()?2:0)|((pad_sensitivity+90)<<8u)|(pad_curve<<16u);
  out.display[4]=static_cast<i32>(aux_page);
  out.display[5]=static_cast<i32>(s.active_tracks);
  out.display[6]=static_cast<i32>(route_bank);

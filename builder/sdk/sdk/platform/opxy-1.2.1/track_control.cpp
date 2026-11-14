@@ -69,6 +69,7 @@
 // track's encoders to sdk_control_turn before stock's editor sees it.
 #include "track_control.hpp"
 #include <opxy/morph_midi_input.hpp>
+#include <opxy/morph_pad_input.hpp>
 #include "stock.hpp"
 #include "synth_controls.hpp"
 #include "benchmark.hpp"
@@ -205,6 +206,7 @@ opxy::morphport::Session morph_session={};
 opxy::morphport::Session morph_setbase={};
 opxy::morphport::Pending morph_pending[control::store_capacity]={};
 opxy::morphmidi::Latest morph_midi={};
+opxy::morphpad::Input morph_pad={};
 u32 morph_midi_epoch=0u;
 u32 morph_skips;
 u32 morph_setbase_skips;
@@ -430,6 +432,25 @@ extern "C" bool sdk_morph_persist_identity(opxy::morphport::ShiftSchema* schemas
         if(t<8u)schemas[t]=morph_schema(t);
     }
     return project==word(0x840a0524) && !word(kProjectLoading);
+}
+// Only the physical input receiver's call is patched. The shared stock
+// function and its MIDI/reset callers remain intact. Four arguments, C ABI.
+extern "C" void sdk_morph_pad_event(u32 controller,u32 track,i32 pressure,u32 source) {
+    const u32 project=word(0x840a0524);
+    if(!morph_unique_owner() || word(kProjectLoading) || !morph_session.active ||
+       !project || project!=morph_session.project || byte(project+6u)!=morph_session.scene)
+        morph_pad.requested=false;
+    if(!morph_pad.event(pressure))
+        stock<void(u32,u32,i32,u32)>(0x8d5974e0)(controller,track,pressure,source);
+}
+extern "C" void sdk_morph_pad_request(bool requested) {
+    morph_pad.request(requested && morph_live_context(),
+        static_cast<i32>(word(0x840ab680)));
+}
+extern "C" bool sdk_morph_pad_waiting(){return morph_pad.owned!=morph_pad.requested;}
+extern "C" bool sdk_morph_pad_read(i32* pressure) {
+    if(!pressure || !morph_pad.requested || !morph_pad.owned || !morph_live_context())return false;
+    *pressure=morph_pad.pressure;return true;
 }
 // Stock CC dispatch is in the GUI message path. No synth/store work here.
 extern "C" void sdk_morph_midi_cc(u32 track,u32 cc,u32 value) {

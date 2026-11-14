@@ -1,6 +1,6 @@
 # Morph for OP-XY
 
-**Morph v1.1.0** - MIDI update, pinned to hardware-tested **Gate36a**.
+**Morph v1.2.0** - pressure-pad update, pinned to hardware-tested **Gate39**.
 
 Capture two sounds across your instrument tracks, move toward either one, and return to a stored starting point. Choose which tracks participate, use the instrument HUD for performance and snapshot editing, or drive the movement with recorded automation and the stock LFO.
 
@@ -17,6 +17,12 @@ Capture two sounds across your instrument tracks, move toward either one, and re
 
 ![Morph AUX M2](docs/screens/aux-m2-tracks-1-4.png)
 
+## Pressure-pad controls
+
+![Morph AUX M3](docs/screens/aux-m3.png)
+
+M3 K1 selects PITCH/MORPH. K2 adjusts speed (-90% to +100%, then INSTANT). K3 selects SQRT, LINEAR or EXP. Enable LIVE on M1; release the pad to hold position.
+
 ## Start here
 
 Read the [illustrated quick reference](docs/Morph-Quick-Reference.pdf) for screens and button combinations.
@@ -31,7 +37,7 @@ The repository contains source and a macOS Python/Tk builder. It does **not** co
 
 The final build must reconstruct the original setup and fit the protected **4 MiB module reservation**. Unknown provenance, incompatible kits and over-capacity builds are refused. This region is not total storage or CPU usage. Scanning, calculation and building remain read-only toward the device; staging is separate and never writes the boot partition itself.
 
-## MIDI movement — new in v1.1.0
+## MIDI movement
 
 Use **MIDI channel 12, CC 15**, with Morph manually set LIVE.
 
@@ -45,9 +51,21 @@ Origin is the existing movement reference; it is not necessarily S. MIDI does no
 
 ## Release status
 
-The owner reports Gate36a works correctly with no regressions. v1.1.0 replaces Gate35 with Gate36a; v1.0.0 remains the rollback release. The public builder uses your explicitly selected private matching kit; fresh acceptance of this exact public archive remains pending.
+Pinned to Gate39. The owner confirms no regressions and correct feature operation on hardware.
 
-Targeted host checks pass. The full SDK suite remains **not green: 546 tests, 18 failures, 15 errors, 38 skips**. See [validation](docs/VALIDATION.md). Native allocation is checked for each build. CPU usage has not been measured and upstream catalog approval is not claimed.
+- AUX M3 K1: stock PITCH or MORPH pad mode.
+- K2: speed -90% through +100%, then INSTANT; bounded intermediate steps.
+- K3: SQRT / LINEAR / EXP pressure response.
+- Release holds position; INSTANT requests full A/B from a directional push.
+- Mode changes wait for release. Settings save with snapshots in the project companion.
+- Held instrument HUD delay is 150 ms; exact-endpoint reversal fixed.
+- MIDI channel 12 CC15, automation, routing, locks and existing controls retained.
+
+Older snapshot formats load with compatible defaults. This release saves v5 banks; older releases reject them. Preserve original project/companion copies for rollback. v1.1.0 remains available unchanged.
+
+The release contains source, macOS builder and an updated illustrated quick reference. Supply your own firmware and compatible private kit/provenance. No OS image, private kit or user projects included. Every native build must independently verify reconstruction and the protected 4 MiB allocation before staging. WRITE OS stays manual.
+
+Host verification: 24,635 pad checks, 17,346 integration assertions, M1 and route parity pass. The inherited full SDK suite remains non-green (18 failures, 15 errors); logs included. Hardware acceptance is the owner's report, not independently measured here. CPU profiling remains unmeasured; upstream catalog approval is not claimed. Fresh acceptance of this exact public archive remains pending.
 
 ## Read more
 

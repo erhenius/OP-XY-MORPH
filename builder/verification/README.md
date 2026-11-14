@@ -1,4 +1,4 @@
-Gate35 applied C++ display frames. aux-0: M1; aux-1: M2 bank 1–4; aux-2: M2 bank 5–8. These are host renders, not device screenshots.
+Gate37 applied C++ display frames. aux-0: M1; aux-1: M2 bank 1–4; aux-2: M2 bank 5–8; aux-3: M3 PITCH; aux-4: M3 MORPH. These are host renders, not device screenshots.
 
 Reconstructed visuals, not device captures. From the package root:
 

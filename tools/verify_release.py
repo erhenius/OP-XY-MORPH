@@ -11,9 +11,9 @@ def verify():
    p=(base/name).resolve();require(p.is_relative_to(base.resolve()),'Invalid manifest path '+name)
    require(p.is_file() and sha(p)==digest,'Integrity mismatch '+str(p))
  pin=json.loads((ROOT/'release.json').read_text())
- require(pin['version']=='1.1.0' and pin['machine_revision']=='Gate36a','Unexpected release identity')
+ require(pin['version']=='1.2.0' and pin['machine_revision']=='Gate39','Unexpected release identity')
  for name,digest in pin['source_sha256'].items():
-  require(sha(ROOT/'builder'/name)==digest,'Gate36a source changed '+name)
+  require(sha(ROOT/'builder'/name)==digest,'Gate39 source changed '+name)
   if name.startswith('machine/'):
    require(sha(ROOT/'morphcapture'/Path(name).relative_to('machine'))==digest,'Standalone machine drift '+name)
  forbidden=[]
@@ -21,7 +21,7 @@ def verify():
   if not p.is_file() or '.git' in p.relative_to(ROOT).parts:continue
   if p.suffix.lower() in ('.ldr','.xy','.oxy','.elf','.o','.a','.wasm') or p.name=='reference-kit.json':forbidden.append(str(p.relative_to(ROOT)))
  require(not forbidden,'Private/compiled files found: '+', '.join(forbidden))
- print('PASS: v1.1.0 manifests, pinned Gate36a source, duplicate source and public payload checks')
+ print('PASS: v1.2.0 manifests, pinned Gate39 source, duplicate source and public payload checks')
 if __name__=='__main__':
  try:verify()
  except Exception as e:print('FAIL:',e,file=sys.stderr);sys.exit(1)
