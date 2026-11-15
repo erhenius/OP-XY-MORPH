@@ -22,6 +22,7 @@ void verify_all(i32 v) {
     for(u32 t=0;t<8;++t)for(u32 p=0;p<26u;++p)
         check(static_cast<i32>(bases[t][morphcapture::slots[p]])==v,"Stored parameter mismatch");
 }
+void follow_cycle() { for(u32 n=0;n<16u;++n){cycles+=400u*25000u;sdk_gui_tick();} }
 int main() {
     sdk_aux.engine=aux_engine;sdk_aux.tick=aux_tick;aux_engines[11]=42;
     project_loading=1;sdk_gui_tick();
@@ -33,8 +34,64 @@ int main() {
     for(u32 t=0;t<8u;++t)for(u32 p=0;p<26u;++p)
       check(state.scene[0][t][p]==0x12000000 && state.scene[1][t][p]==0x12000000 && state.base[t][p]==0x12000000,"Startup A/B/S differ");
     check(sets==startup_sets && !state.mode && !state.origin_ready,"Startup wrote parameters or entered LIVE");
-    fill(0x22000000);selected=11u;sdk_gui_tick();selected=0;sdk_gui_tick();
-    check(state.scene[0][0][0]==0x12000000 && state.base[0][0]==0x12000000,"AUX visit recaptured startup");
+    fill(0x22000000);selected=11u;sdk_gui_tick();selected=0;sdk_gui_tick();follow_cycle();
+    check(state.scene[0][0][0]==0x12000000 && state.base[0][0]==0x22000000,"BYPASS must track S without recapturing A");
+    // Performance regression: simulate 1000 GUI ticks over one second.
+    // Full-context validation inside a batch makes whole-bank polling costly.
+    // Idle work must stay at one 34-field track per tick and 40 tracks/second.
+    const u32 budget_start=host_batch_reads;u32 worst_follow_tick=0u;
+    for(u32 tick=0;tick<1000u;++tick) {
+      const u32 before=host_batch_reads;cycles+=400u*1000u;sdk_gui_tick();
+      const u32 cost=host_batch_reads-before;if(cost>worst_follow_tick)worst_follow_tick=cost;
+    }
+    const u32 budget_reads=host_batch_reads-budget_start;
+    std::printf("BYPASS stored-field reads over 1000 ticks / one second: %u\n",budget_reads);
+    check(worst_follow_tick<=34u,"BYPASS polling exceeded one track per GUI tick");
+    check(budget_reads<=40u*34u && budget_reads>=32u*34u,"BYPASS polling exceeded bounded rate or stopped tracking");
+    const u32 hitch_before=host_batch_reads;cycles+=400u*900000u;sdk_gui_tick();
+    check(host_batch_reads-hitch_before<=34u,"Long GUI tick triggered catch-up burst");
+    // Regression: all eight stored tracks follow in BYPASS without SET S,
+    // including unselected/nonparticipating tracks; never touch A/B or stock.
+    const u32 follow_sets=sets,follow_writes=writes;
+    state.active_tracks=1u;fill(0x24000000);selected=0;follow_cycle();
+    for(u32 t=0;t<8u;++t)for(u32 p=0;p<26u;++p) {
+      check(state.base[t][p]==0x24000000,"BYPASS S did not follow every stored track");
+      check(state.scene[0][t][p]==0x12000000 && state.scene[1][t][p]==0x12000000,"Following S changed A/B");
+    }
+    check(sets==follow_sets && writes==follow_writes,"S following wrote to the synth");
+    state.active_tracks=255u;
+    // Modulation/live locks are not the stored synth settings.
+    value(0,0)=0x70000000;lfo[0][0]=0x01000000;follow_cycle();
+    check(state.base[0][0]==0x24000000,"S absorbed live modulation instead of stored settings");lfo[0][0]=0;
+    // A failure on the last track must not publish the first seven tracks.
+    fill(0x28000000);bases[7][35]=0xffffffffu;follow_cycle();capture(3);
+    for(u32 t=0;t<8u;++t)for(u32 p=0;p<26u;++p)
+      check(state.base[t][p]==0x24000000,"Failed follow partially replaced S");
+    check(!state.mode && state.fault!=0u,"Failed follow allowed LIVE with stale S");
+    bases[7][35]=0x28000000;follow_cycle();
+    check(state.base[7][25]==0x28000000 && !state.mode,"Follow did not recover without replaying refused activation");
+    // Same-tick stock edit + activation freezes the latest S, not last tick's.
+    fill(0x40000000);capture(3);
+    check(state.mode && state.base[0][0]==0x40000000,"LIVE entry froze stale S");
+    const u32 live_budget=host_batch_reads;
+    for(u32 tick=0;tick<100u;++tick){cycles+=400u*25000u;sdk_gui_tick();}
+    check(host_batch_reads==live_budget,"LIVE performed background S reads");
+    fill(0x50000000);sdk_gui_tick();
+    check(state.base[0][0]==0x40000000,"LIVE idle tracked S");
+    // Return transaction must retain a fixed target through every write/readback.
+    capture(3);
+    for(u32 n=0;n<80u && state.phase!=morphcapture::idle;++n) {
+      check(state.base[0][0]==0x40000000,"Return transaction changed its S target");
+      sdk_gui_tick();
+    }
+    check(!state.mode && state.phase==morphcapture::idle,"BYPASS return failed");verify_all(0x40000000);
+    fill(0x46000000);follow_cycle();check(state.base[0][0]==0x46000000,"S did not resume following after return");
+    // Muting suspends the bridge: keep S and resume without a spurious fault.
+    mute_flags(0,11)=0x02;fill(0x48000000);sdk_gui_tick();
+    check(state.base[0][0]==0x46000000 && !state.fault,"Muted tracking crossed the bridge guard");
+    mute_flags(0,11)=0;follow_cycle();check(state.base[0][0]==0x48000000,"S did not catch up after unmute");
+    capture(3);fill(0x51000000);capture(2);
+    check(state.base[0][0]==0x51000000 && !state.mode,"Explicit AUX SET S from LIVE was refused");
     fill(0x10000000);capture(0); // A; automatic S starts here
     fill(0x60000000);capture(1); // B
     fill(0x30000000);capture(2); // independent S
@@ -99,6 +156,11 @@ int main() {
     aux_events.turn(3,1);sdk_gui_tick();
     check(state.target_bypass && state.travel==4,"AUX interrupted return to S");
     drain();verify_all(0x30000000);
+    frame();check(morphcapture::sdk_morph_hud_physical_press(3),"Explicit S test LIVE entry denied");sdk_gui_tick();
+    bases[0][0]=0x39000000;
+    frame();check(morphcapture::sdk_morph_hud_physical_press(2),"Explicit HUD SET S denied");sdk_gui_tick();
+    check(state.base[0][0]==0x39000000 && !state.mode,"Explicit HUD SET S from LIVE did not capture");
+    bases[0][0]=0x30000000;follow_cycle();
     // Scene edits are deferred, never writes from the compositor/input path.
     frame();const i32 old_a=state.scene[0][0][8];u32 old_sets=sets;
     check(morphcapture::sdk_morph_hud_raw_turn(0,0,1,0),"Scene edit offer denied");
@@ -168,30 +230,33 @@ int main() {
       sdk_gui_tick();check(state.travel==static_cast<i32>(n+1u),"In-flight sweep dropped a detent");
     }
     drain();
-    const i32 saved_a=state.scene[0][0][0],saved_b=state.scene[1][0][0],other_s=state.base[1][0];
+    const i32 saved_a=state.scene[0][0][0],saved_b=state.scene[1][0][0],other_s=state.base[1][0],live_s=state.base[0][0];
     // Actual scramble completion is delivered after stock changes its stored values.
     for(u32 p=0;p<control::track_parameters;++p)bases[0][p]=0x23456789u;
     const u32 scramble_sets=sets;
     check(sdk_morph_scramble_done!=nullptr,"Scramble subscriber missing");
     sdk_morph_scramble_done(0);sdk_gui_tick();
-    check(state.base[0][0]==0x23456789 && state.base[1][0]==other_s,"Scramble S refresh crossed tracks");
+    check(state.base[0][0]==live_s && state.base[1][0]==other_s,"LIVE scramble changed S");
     check(state.scene[0][0][0]==saved_a && state.scene[1][0][0]==saved_b,"Scramble overwrote A/B");
-    check(!state.mode && !state.origin_ready && state.phase==morphcapture::idle,"Scramble retained old morph trajectory");
+    check(state.mode && state.origin_ready && state.phase==morphcapture::idle && state.origin[0][0]==0x23456789,"LIVE scramble did not rebase only its movement origin");
     check(sets==scramble_sets && bases[0][0]==0x23456789u,"Scramble refresh wrote to stock");
-    check(sdk_morph_hud_snapshot_read(0,&snap) && snap.s[0]==0x23456789,"HUD S did not refresh after scramble");
+    check(sdk_morph_hud_snapshot_read(0,&snap) && snap.s[0]==live_s,"LIVE scramble changed HUD S");
     // A scramble also cancels a partially applied sweep before more writes.
     check(morphcapture::sdk_morph_hud_raw_turn(0,3,1,1),"Second sweep denied");sdk_gui_tick();
     for(u32 p=0;p<control::track_parameters;++p)bases[0][p]=0x34567890u;
     const u32 pending_sets=sets;sdk_morph_scramble_done(0);sdk_gui_tick();
-    check(sets==pending_sets && state.base[0][0]==0x34567890,"Pending morph overwrote scramble");
+    check(sets==pending_sets && state.base[0][0]==live_s && state.origin[0][0]==0x34567890 && state.mode,"Pending LIVE scramble changed S or overwrote sound");
     // Read failure must not partly replace S.
     const i32 saved_s=state.base[0][0];bases[0][1]=0xffffffffu;
     sdk_morph_scramble_done(0);sdk_gui_tick();
     check(state.base[0][0]==saved_s && state.fault==14u,"Failed scramble read partially changed S");
     bases[0][1]=0x45678901u;
     aux_events.turn(3,1);sdk_gui_tick();
-    check(state.base[0][1]==0x45678901 && !state.fault,"Scramble refresh did not recover");
-    check(!state.mode && state.phase==morphcapture::idle,"Recovery replayed stale movement");
+    check(state.base[0][0]==live_s && state.origin[0][1]==0x45678901 && !state.fault,"LIVE scramble origin retry changed S or failed");
+    check(state.mode && state.travel==0 && state.phase==morphcapture::idle,"Recovery replayed stale movement or left LIVE");
+    capture(3);drain();
+    bases[0][0]=0x23456789u;sdk_morph_scramble_done(0);sdk_gui_tick();
+    check(!state.mode && state.base[0][0]==0x23456789,"BYPASS scramble failed to track current settings");
     frame(77u);check(sdk_morph_gui_route_trace(0)==77u && sdk_morph_gui_route_trace(2)==7u,"Route trace missed selected HUD");
     selected=11u;frame(219u);check(sdk_morph_gui_route_trace(0)==77u,"AUX erased instrument route trace");selected=0;frame();
     // Registered-screen and stock-overlay guards still close input ownership.
@@ -237,7 +302,9 @@ int main() {
     bases[3][36]=opxy::platform::synth_shift::with(0,0,95,shift_schema.defaults);
     bases[3][36]=opxy::platform::synth_shift::with(bases[3][36],1,3,shift_schema.defaults);
     bases[3][37]=opxy::platform::synth_shift::with(0,7,87,shift_schema.defaults);
-    capture(1);capture(3);aux_events.turn(3,4);sdk_gui_tick();
+    capture(1);
+    // Back in BYPASS, restore the desired current SHIFT settings before LIVE.
+    bases[3][36]=0;bases[3][37]=0;capture(3);aux_events.turn(3,4);sdk_gui_tick();
     state.travel=64;morphcapture::schedule(state,false);drain();
     check(opxy::platform::synth_shift::field(bases[3][36],0,shift_schema.defaults)==95,"SHIFT B endpoint wrong");
     capture(3);drain();
@@ -276,13 +343,13 @@ int main() {
     // Persist five banks, schema identity and pattern ownership.
     opxy::u8 saved[5684]={};
     check(morphcapture::control_save(state,saved,sizeof saved)==sizeof saved,"Save payload length wrong");
-    morphcapture::control_load(state,saved,sizeof saved);sdk_gui_tick();
+    morphcapture::control_load(state,saved,sizeof saved);sdk_gui_tick();follow_cycle();
     check(state.scene[0][0][0]==0x10000000 && state.scene[1][0][0]==0x60000000,"Restored snapshots overwritten by startup");
     check(!state.mode && morphcapture::recorded_reference,"Load must require manual LIVE and retain recording basis");
     capture(3);drain();check(state.mode && state.travel==64,"Loaded movement did not reproduce");
     capture(3);drain();
     for(u32 i=0;i<5u;++i){value(11,3)=morphcapture::automation::encode(i*10-20);sdk_gui_tick();}
-    check(!state.mode && state.phase==morphcapture::idle && bases[0][0]==0x30000000u,"Playback undid manual bypass");
+    check(!state.mode && state.phase==morphcapture::idle && bases[0][0]==0x60000000u,"Playback undid manual bypass after S followed loaded current settings");
     saved[900]^=1u;morphcapture::control_load(state,saved,sizeof saved);
     check(!state.base_ready && !morphcapture::restored_pending,"Corrupt persistence published");saved[900]^=1u;
     morphcapture::control_load(state,saved,100u);check(!state.base_ready,"Truncated persistence accepted");

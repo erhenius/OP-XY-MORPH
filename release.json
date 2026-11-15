@@ -6,7 +6,7 @@
   "sdk_version": "1.15",
   "upstream_sdk_commit": "6642b3c6165043d29d4c9c9429294a42b71f924f",
   "firmware_profile": "opxy-1.2.1",
-  "hardware_status": "Owner reports no regressions and all Gate39 features functioning as intended",
+  "hardware_status": "Owner reported no regressions for the Gate39 baseline; hardware acceptance and GUI timing of this S-tracking fix remain pending",
   "public_builder_adapter": "External selected private kit replaces bundled personal reference kit; host-tested, fresh Mac/device acceptance pending",
   "cpu_profile": "not measured; paused",
   "catalog_approval": "not claimed",
@@ -24,7 +24,7 @@
     "legacy_sdk/sdk/browser/graphics.mjs": "fa354b0a4b8829640f3368af6a18e7532a7f43c3ed807575f688e77951a47c41",
     "legacy_sdk/tooling/default_preset.json": "1f70d0dd9109246fb528b708836f4d113d94e3a6cfdf1356af51f5ea5c57e9c7",
     "machine/Built_definition.json": "4fdbb4ae432d001be5aa577ae0ea373ddcd0b1f2602a8dbd004e5f3dbd5d44bf",
-    "machine/control.cpp": "4bf3cc752b0ae1672cd86d5ca5bb3c1e96e0eb34ec3c6458a191577b9964a72f",
+    "machine/control.cpp": "ee349e52ce6b5a29e20e3b7f86c04bde5f47fb1fdc163c749b6210262331e89a",
     "machine/core.h": "eef1fb40a592b725496354f4959e071abb45df2a37b3665b4b22423962b330ff",
     "machine/definition.json": "4fdbb4ae432d001be5aa577ae0ea373ddcd0b1f2602a8dbd004e5f3dbd5d44bf",
     "machine/display.cpp": "2a82cc19bcafd35bb942f6b9b9a9d78d8cead3500372a5a763d08cc6231a7aca",
@@ -559,5 +559,6 @@
     "sdk/tools/serve_harness.py": "f4838863dde7a89b5cabfddbb5a87baa7904f7470fc853e25dc14384b7cb2f6f",
     "sdk/vite.config.mjs": "be9cbfce5849ddc17c54d883794c3fbb8fe0a8b46a23937753a2a675c97e542f",
     "sdk/wrangler.jsonc": "05b84b4bc5b872befe794c51efeb44f659c7a581f8ba3dd1ad77239d0dac942e"
-  }
+  },
+  "fix": "Bound BYPASS S tracking; synchronize S on LIVE entry; retain explicit SET S"
 }

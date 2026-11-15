@@ -8,7 +8,7 @@ Capture two sounds across your instrument tracks, move toward either one, and re
 
 ## What it does
 
-- A/B snapshots across eight instrument tracks, plus an independent S return point.
+- A/B snapshots across eight instrument tracks, plus an independent S return point. S follows stored settings in BYPASS through bounded background reads and synchronizes when entering LIVE. Automatic tracking stops in LIVE; explicit SET S remains available.
 - AUX M2 routing: enable or exclude tracks while keeping capture available for all eight.
 - Instrument HUD with track capture, snapshot editing, jumps, sweep and latch.
 - Metadata-driven capture/morphing of supported synth SHIFT parameters, including continuous and stepped controls.
@@ -65,7 +65,7 @@ Older snapshot formats load with compatible defaults. This release saves v5 bank
 
 The release contains source, macOS builder and an updated illustrated quick reference. Supply your own firmware and compatible private kit/provenance. No OS image, private kit or user projects included. Every native build must independently verify reconstruction and the protected 4 MiB allocation before staging. WRITE OS stays manual.
 
-Host verification: 24,635 pad checks, 17,346 integration assertions, M1 and route parity pass. The inherited full SDK suite remains non-green (18 failures, 15 errors); logs included. Hardware acceptance is the owner's report, not independently measured here. CPU profiling remains unmeasured; upstream catalog approval is not claimed. Fresh acceptance of this exact public archive remains pending.
+S-tracking fix: 18,248 integration assertions, including per-tick and per-second polling limits, plus M1 and route parity pass. The saved format is unchanged. The earlier Gate39 baseline also passed 24,635 pad checks. Hardware acceptance and CPU/GUI timing of this fix remain pending. The inherited full SDK suite remains non-green (18 failures, 15 errors); logs included. Hardware acceptance is the owner's report, not independently measured here. CPU profiling remains unmeasured; upstream catalog approval is not claimed. Fresh acceptance of this exact public archive remains pending.
 
 ## Read more
 

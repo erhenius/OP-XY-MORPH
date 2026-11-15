@@ -40,7 +40,7 @@ const u32 idle=0u, sending=1u, verify_first=2u, verify_second=3u, failed=4u;
 
 struct ControlState {
  i32 scene[2][kTracks][kParams];
- i32 base[kTracks][kParams];       // S: independent, frozen, never mid-point derived
+ i32 base[kTracks][kParams];       // S: follows stored settings in idle BYPASS; frozen during LIVE/restore
  i32 origin[kTracks][kParams];     // CURRENT at start of each movement session
  u32 captured_mask[2];
  u32 context_ready;
@@ -235,6 +235,11 @@ void hud_scramble_done(u32 track) {
 }
 // Shared candidate scratch, safe because the owner is unique; static POD only.
 static i32 candidate[kTracks][kParams];
+// GUI-only staging for a bounded BYPASS sweep. Never share scratch with
+// explicit captures/origin reads; publish S only after all eight slices pass.
+static i32 follow_pending[kTracks][kParams];
+static u32 follow_track=0u,follow_elapsed=0u;
+inline void reset_follow(){follow_track=0u;follow_elapsed=0u;}
 static_assert(sizeof(ControlState)%4u==0u,"state alignment");
 // C-ABI mailbox: producer and consumer run on stock's GUI thread. There is no
 // background polling or dynamic constructor. At most one authorized gesture
@@ -367,6 +372,7 @@ opxy::u32 hud_readonly_screen_route(opxy::u32 selected_page) {
  return 219u;
 }
 void control_reset(ControlState& s) {
+ reset_follow();
  midi_input.reset();sdk_morph_midi_clear();
  aux_page=1u;route_bank=0u;lfo_was_active=false;pad_enabled=false;pad_sensitivity=0;pad_curve=1u;pad_input.reset();sdk_morph_pad_request(false);s.active_tracks=255u;
  scramble_pending=0u;startup_captured=false;restored_pending=false;recorded_reference=false;transport_playing=false;movement_lane.reset();
@@ -407,6 +413,28 @@ inline bool read_all(i32 (&into)[kTracks][kParams]) {
  for(u32 t=0;t<kTracks;++t)
   if(!sdk_morph_stored_batch_read(t,slots,kParams,into[t]))return false;
  return sdk_morph_session_context_ok();
+}
+// At most one guarded track read per 25 ms, never a catch-up loop. The
+// unchanged SDK authenticates context before and after each bounded slice.
+// A full sweep takes at least 200 ms; activation synchronizes immediately.
+inline bool follow_bypass_start(ControlState& s,u32 elapsed_us) {
+ if(s.mode || s.phase!=idle){reset_follow();return true;}
+ if(!s.context_ready){reset_follow();return false;}
+ const u32 period=25000u;
+ const u32 add=elapsed_us<period?elapsed_us:period;
+ follow_elapsed+=add;
+ if(follow_elapsed<period)return true;
+ follow_elapsed=0u;
+ if(!sdk_morph_stored_batch_read(follow_track,slots,kParams,follow_pending[follow_track])) {
+  reset_follow();return false;
+ }
+ if(++follow_track<kTracks)return true;
+ // Every slice has checked the same retained session. Its last guarded read
+ // confirms ownership before this GUI-thread publication; no stock writes.
+ for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i)
+  s.base[t][i]=follow_pending[t][i];
+ s.base_ready=1u;s.origin_ready=0u;follow_track=0u;
+ return true;
 }
 inline bool capture_startup(ControlState& s) {
  if(startup_captured)return true;
@@ -529,6 +557,7 @@ inline bool origin_pickup(ControlState& s) {
  return true;
 }
 inline bool set_s(ControlState& s) {
+ reset_follow();
  // Dedicated SET S session: the bridge separately checks project/scene/block.
  if(!sdk_morph_setbase_context_begin())return false;
  bool good=true;
@@ -546,7 +575,7 @@ inline bool set_s(ControlState& s) {
  return true;
 }
 inline bool refresh_scrambled_start(ControlState& s,u32 mask) {
- if(!mask || !read_all(candidate))return false;
+ if(s.mode || s.phase!=idle || !mask || !read_all(candidate))return false;
  for(u32 t=0;t<kTracks;++t)if(!s.base_ready || (mask&(1u<<t)))
   for(u32 i=0;i<kParams;++i)s.base[t][i]=candidate[t][i];
  s.base_ready=1u;s.origin_ready=0u;s.mode=0u;s.travel=0;
@@ -572,6 +601,15 @@ inline void schedule(ControlState& s,bool bypass) {
  s.target_bypass=bypass?1u:0u;s.phase=sending;s.cursor=0u;s.fault=0u;
 }
 inline bool activate(ControlState& s) {
+ // Freeze the exact current stored sound on BYPASS -> LIVE, regardless of
+ // where the background sweep was. Reuse this read as the movement origin.
+ if(!s.mode) {
+  reset_follow();
+  if(!origin_pickup(s))return false;
+  for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i)
+   s.base[t][i]=s.origin[t][i];
+  s.base_ready=1u;
+ }
  midi_input.reset();sdk_morph_midi_clear();
  if(!captured(s))return false;
  if(transport_playing && recorded_reference) {
@@ -579,7 +617,7 @@ inline bool activate(ControlState& s) {
   s.origin_ready=1u;
  }
  if(!s.origin_ready && !origin_pickup(s))return false;
- s.mode=1u;movement_lane.activate();movement_lane.primed=false;return true;
+ s.mode=1u;s.fault=0u;movement_lane.activate();movement_lane.primed=false;return true;
 }
 inline void submit_tick(ControlState& s) {
  u32 inspected=0u;
@@ -729,19 +767,28 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  if(in.muted){pad_input.reset(s.travel);u32 discarded=0u;(void)sdk_morph_midi_take(&discarded);midi_input.ready=false;}
  const u32 scrambled=scramble_pending;
  if(scrambled && s.context_ready) {
+  reset_follow();
   midi_input.reset();sdk_morph_midi_clear();
   // Cancel any unfinished morph write before it can overwrite the new sound.
-  s.phase=idle;s.cursor=0u;s.mode=0u;s.origin_ready=0u;s.travel=0;
-  if(refresh_scrambled_start(s,scrambled))scramble_pending &= ~scrambled;
+  s.phase=idle;s.cursor=0u;s.origin_ready=0u;s.travel=0;
+  // LIVE stays LIVE: only rebase the movement origin, never S.
+  const bool refreshed=s.mode?origin_pickup(s):refresh_scrambled_start(s,scrambled);
+  if(refreshed){scramble_pending &= ~scrambled;s.fault=0u;}
   else s.fault=14u;
  }
+ // Bounded background following. activate() separately takes a fresh snapshot
+ // on BYPASS -> LIVE; no complete-bank polling occurs on ordinary GUI ticks.
+ if(in.muted)reset_follow();
+ const bool start_follow_ok=!startup_captured || in.muted || scrambled || follow_bypass_start(s,in.elapsed_us);
+ if(!start_follow_ok)s.fault=15u;
+ else if(s.fault==15u)s.fault=0u;
  // The mailbox is one shot even when the actual HUD isn't visible.
  // Discard gestures while a scramble refresh is pending.
- if(startup_captured && !scrambled && pending_hud.action && !hud_action(s,pending_hud,in.muted!=0u)) {
+ if(startup_captured && start_follow_ok && !scrambled && pending_hud.action && !hud_action(s,pending_hud,in.muted!=0u)) {
   // Do not mutate the stored scenes, return snapshot, or send phase on refusal.
   // A failed HUD action is not promoted into a stock AUX action.
  }
- if(startup_captured && !scrambled && (turns_hud.steps[0] || turns_hud.steps[1] || turns_hud.steps[2] || turns_hud.steps[3])) {
+ if(startup_captured && start_follow_ok && !scrambled && (turns_hud.steps[0] || turns_hud.steps[1] || turns_hud.steps[2] || turns_hud.steps[3])) {
   if(!context(s))s.fault=13u;
   else hud_apply_turns(s,turns_hud,in.muted!=0u);
  }
@@ -789,7 +836,7 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
   // V1 parity: BYPASS requested while muted is queued, never written while muted.
   schedule(s,true);
  }
- if(!in.muted && s.context_ready && !scrambled) {
+ if(!in.muted && s.context_ready && !scrambled && start_follow_ok) {
   // Captures before active movement; no partial overwrite.
   if(s.phase==idle && (clicks&3u)) {
    if((clicks&1u) && !capture(s,0u))s.fault=7u;
