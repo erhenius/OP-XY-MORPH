@@ -1,6 +1,6 @@
 # Morph for OP-XY
 
-**Morph v1.3.0-dev** — A/B preset development build, based on Gate39 plus the S-tracking performance fix. Native build and hardware acceptance are pending.
+**Morph v1.3.0-dev** — A/B preset development build, based on Gate39 plus the S-tracking performance fix. Native build and hardware acceptance are done. No regressions found in 2 hardware tests and features function as expected.
 
 Capture two sounds across your instrument tracks, move toward either one, and return to a stored starting point. Choose which tracks participate, use the instrument HUD for performance and snapshot editing, or drive the movement with recorded automation and the stock LFO.
 
