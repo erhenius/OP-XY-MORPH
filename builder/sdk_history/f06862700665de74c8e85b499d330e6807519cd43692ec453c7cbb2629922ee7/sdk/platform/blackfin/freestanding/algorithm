@@ -1,0 +1,21 @@
+// Freestanding subset of <algorithm> for vendored machine code.
+// The OP-XY module links no C++ standard library.
+#ifndef OPXY_FREESTANDING_ALGORITHM_
+#define OPXY_FREESTANDING_ALGORITHM_
+
+namespace std {
+
+template <typename T>
+inline const T& min(const T& a, const T& b) { return b < a ? b : a; }
+
+template <typename T>
+inline const T& max(const T& a, const T& b) { return a < b ? b : a; }
+
+template <typename Iterator, typename T>
+inline void fill(Iterator first, Iterator last, const T& value) {
+  for (; first != last; ++first) *first = value;
+}
+
+}  // namespace std
+
+#endif  // OPXY_FREESTANDING_ALGORITHM_

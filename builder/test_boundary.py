@@ -41,6 +41,7 @@ with tempfile.TemporaryDirectory(prefix='morph-boundary-') as tmp:
     fixture=fixture.replace('1u << 11, nullptr, {}', '1u << 11, nullptr, {}, true')
     marker='opxy::platform::Address opxy::platform::host_stock_address' 
     extra='''
+#include "preset_file_double.hpp"
 static u32 held_keys[22]={}, module_word=1, raw_words[4]={};
 static bool shifted=false, registered=true;
 u32 stock_key(u32 key) { return key<22?held_keys[key]:0; }
@@ -63,7 +64,11 @@ bool sdk_morph_hud_m1_toggle(u32) { return false; }
     fixture=fixture.replace(marker,extra+'\n'+marker)
     fixture=fixture.replace(marker,'bool invalidate_on_value_read=false;\n'+marker)
     fixture=fixture.replace('const u32 at = offset - 0x3864;', 'if(invalidate_on_value_read && offset==0x3864) { invalidate_on_value_read=false;project_bytes[6]=1; }\n        const u32 at = offset - 0x3864;')
-    fixture=fixture.replace('    if (address >= kLive', '''    if(address==0x8d5b7d7c)return reinterpret_cast<Address>(&stock_key);
+    fixture=fixture.replace('    if (address >= kLive', '''    if(address==0x8fed0348)return reinterpret_cast<Address>(&host_preset_open);
+    if(address==0x8fed05bc)return reinterpret_cast<Address>(&host_preset_read);
+    if(address==0x8fed0780)return reinterpret_cast<Address>(&host_preset_write);
+    if(address==0x8fed00ae)return reinterpret_cast<Address>(&host_preset_close);
+    if(address==0x8d5b7d7c)return reinterpret_cast<Address>(&stock_key);
     if(address==0x8d51f184)return reinterpret_cast<Address>(&host_shift_query);
     if(address==kSelectedTrack)return reinterpret_cast<Address>(&selected);
     if(address==0x080238bc)return reinterpret_cast<Address>(&module_word);
@@ -73,6 +78,6 @@ bool sdk_morph_hud_m1_toggle(u32) { return false; }
     (out/'test.cpp').write_text(fixture)
     compiler=shutil.which('clang++') or shutil.which('g++')
     if not compiler:raise SystemExit('A host C++ compiler is required')
-    cmd=[compiler,'-std=c++11','-O0','-I'+str(out),'-I'+str(MACHINE),'-I'+str(SDK/'sdk/include'),'-I'+str(platform),str(out/'test.cpp'),'-o',str(out/'test')]
+    cmd=[compiler,'-std=c++11','-O0','-I'+str(out),'-I'+str(HERE),'-I'+str(MACHINE),'-I'+str(SDK/'sdk/include'),'-I'+str(platform),str(out/'test.cpp'),'-o',str(out/'test')]
     subprocess.run(cmd,check=True)
     subprocess.run([str(out/'test')],check=True)

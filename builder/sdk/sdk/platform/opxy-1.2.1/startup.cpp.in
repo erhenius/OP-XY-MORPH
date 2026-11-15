@@ -30,6 +30,7 @@ void sdk_project_locks_frame() __asm__("sdk_project_locks_frame");
 u32 sdk_sample_screen(u32) __asm__("sdk_sample_screen");
 int sdk_engine_installed(const void*) __asm__("sdk_engine_installed");
 int sdk_stock_engine_known(const void*) __asm__("sdk_stock_engine_known");
+void sdk_multifx_startup() __asm__("sdk_multifx_startup");
 @DECLARATIONS@
 }
 
@@ -58,6 +59,7 @@ void sdk_startup_synth() {
 // On the GUI role an engine with its own page registers only after its screen
 // is in place; a failed page skips only that engine.
 void sdk_startup_screen() {
+    sdk_multifx_startup();
 @SCREENS@
 }
 

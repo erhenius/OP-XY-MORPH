@@ -225,7 +225,7 @@ SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup'
              'players', 'player_hooks', 'player_table', 'keyboard_octaves', 'sample_overview', 'sample_overview_stock',
              'drum_machines', 'drum_callbacks', 'drum_values_stock', 'drum_synthesis_stock', 'drum_hooks',
              'drum_send', 'drum_send_hooks', 'drum_locks', 'lock_handles', 'drumline', 'drumline_hooks',
-             'synth_shift_hooks')
+             'multifx_stock', 'multifx_ui', 'multifx_events', 'multifx_resume', 'multifx_table', 'synth_shift_hooks')
 # SDK units that exist only for a profile service, linked when a machine needs it.
 UNIT_SERVICES = dict.fromkeys(('sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache',
                                'sample_cache_stock', 'sample_cache_hooks', 'sample_progress',
@@ -266,7 +266,7 @@ def service_users(machines):
     'extension' when it links extensions (native builds link all of the collection's),
     and the capabilities they declare ('master_filter', 'drumline_page')."""
     users = [m.kind for m in machines] + (['extension'] if extensions_of(machines) else [])
-    return (users + ['trackControl' for m in machines if track_control(m)] +
+    return (users + ['multifx' for m in machines if m.id == 'veffmultifx' and m.kind == 'effect'] + ['trackControl' for m in machines if track_control(m)] +
             ['auxTrack' for m in machines if track_control(m) and track_control(m).get('aux')] +
             ['hidePages' for m in machines if 'hidePages' in m.definition] +
             ['padMix' for m in machines if pad_mix(m)] +
@@ -513,6 +513,9 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         folder = obj.parent
         folder.mkdir(exist_ok=True)
         if m is None:
+            if step == 'multifx_table':
+                from . import multifx
+                return cxx(str(multifx.generate(folder, machines)), obj)
             if step == 'drum_callbacks':
                 return cxx(str(generate_drum_callbacks(folder, machines)), obj)
             if step == 'benchmark':
@@ -801,10 +804,12 @@ def check_module(directory, tools, profile, machines, profiling=True, runtime_me
     disassembly = execute([tools['objdump'], '-h', '-dr', elf])
     # The startup label thunk uses Blackfin+ absolute CALL/JUMP forms objdump
     # cannot decode; its exact bytes are checked against the stock targets.
+    from . import multifx
+    resume = multifx.checked_range(profile, module, symbols, allocated['.text'])
     label = symbols[startup_label.SYMBOL]
     undecoded = [int(line.split(':')[0], 16) for line in disassembly.splitlines()
                  if 'ILLEGAL' in line and re.match(r'\s*[0-9a-f]+:', line)]
-    require(all(label['value'] <= at < label['value'] + label['size'] for at in undecoded) and
+    require(all((label['value'] <= at < label['value'] + label['size'] or resume[0] <= at < resume[1]) for at in undecoded) and
             'R_BFIN_' not in disassembly, 'Invalid or unresolved instructions')
     require(startup_label.thunk_ok(read(directory / 'module.bin'), label['value'] - profile['module_base'],
                                    label['size'], symbols['kit_startup_label_text']['value']),

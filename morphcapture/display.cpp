@@ -16,8 +16,28 @@ inline void aux_face(Frame& frame) {
  if(opxy::control::from_control(4u)==3) {
   for(u32 n=0;n<8;++n)opxy::draw::place(frame,53+n,static_cast<i32>(n)*60*opxy::draw::unit,0,opxy::draw::unit,0,opxy::draw::keep);
   for(u32 i=18;i<27;++i)opxy::draw::text(frame,i,640*opxy::draw::unit,320*opxy::draw::unit,opxy::draw::unit,"");
-  for(u32 i=0;i<4;++i)opxy::draw::header(frame,i,i==0?"Pad":i==1?"Sensitivity":i==2?"Curve":"");
+  for(u32 i=0;i<4;++i)opxy::draw::header(frame,i,i==0?"Pad":i==1?"Sensitivity":i==2?"Curve":"Presets");
   opxy::draw::text(frame,27,10*opxy::draw::unit,15*opxy::draw::unit,opxy::draw::unit,"Pad");
+  const u32 preset=static_cast<u32>(opxy::control::from_control(8u));
+  opxy::draw::text(frame,30,370*opxy::draw::unit,15*opxy::draw::unit,opxy::draw::unit,(preset&1u)?"Back":"Presets");
+  if(preset&1u) {
+   const char* labels[4]={"Slot","Load A/B","Save A/B","Back"};
+   for(u32 i=0;i<4;++i){opxy::draw::header(frame,i,labels[i]);
+    opxy::draw::text(frame,27+i,(10+120*static_cast<i32>(i))*opxy::draw::unit,15*opxy::draw::unit,opxy::draw::unit,labels[i]);}
+   const u32 slot=((preset>>4u)&15u)+1u;char name[6]="AB 01";
+   name[3]=static_cast<char>('0'+slot/10u);name[4]=static_cast<char>('0'+slot%10u);
+   opxy::draw::text(frame,22,35*opxy::draw::unit,78*opxy::draw::unit,opxy::draw::unit,name);
+   const u32 status=(preset>>8u)&255u;
+   const char* message=status==1?"Saved":status==2?"Loaded":status==3?"Loaded: M1 preserved":
+       status==4?"Press Save again":status==5?"Stop + BYPASS required":status==6?"Empty or damaged":
+       status==7?"File/context error":status==8?"Capture A and B first":"A/B only - S excluded";
+   opxy::draw::text(frame,23,35*opxy::draw::unit,127*opxy::draw::unit,opxy::draw::unit,message);
+   char tracks[24]="M2/M3 only: --------";const u32 partial=(preset>>16u)&255u;
+   for(u32 t=0;t<8;++t)if(partial&(1u<<t))tracks[12+t]=static_cast<char>('1'+t);
+   opxy::draw::text(frame,24,35*opxy::draw::unit,179*opxy::draw::unit,opxy::draw::unit,partial?tracks:"K1 slot - K4 back");
+   for(u32 n=61;n<63;++n)opxy::draw::place(frame,n,304*opxy::draw::unit,119*opxy::draw::unit,opxy::draw::unit,0,opxy::draw::keep);
+   return;
+  }
   const u32 pad_status=static_cast<u32>(opxy::control::from_control(7u));
   const bool enabled=(pad_status&1u)!=0;
   opxy::draw::text(frame,28,130*opxy::draw::unit,15*opxy::draw::unit,opxy::draw::unit,"Sensitivity");

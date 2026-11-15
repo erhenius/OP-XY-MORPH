@@ -1,3 +1,9 @@
+# v1.3.0-dev — A/B preset source update
+
+This is a development source package, not a hardware-accepted firmware release.
+See [A/B presets](docs/AB-PRESETS.md) for controls, compatibility, validation and
+remaining device checks. It includes the earlier S-tracking performance fix.
+
 # Morph v1.2.0 — pressure-pad movement
 
 Pinned to Gate39. The owner confirms no regressions and correct feature operation on hardware.

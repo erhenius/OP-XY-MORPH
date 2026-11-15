@@ -3,6 +3,8 @@
 #include <opxy/morph_aux_events.hpp>
 #include <opxy/morph_store_bridge.hpp>
 #include "morph_automation.hpp"
+#include "morph_presets.hpp"
+#include <opxy/morph_preset_files.hpp>
 #include "morph_midi.hpp"
 #include "morph_pad.hpp"
 #include <opxy/morph_pad_input.hpp>
@@ -65,6 +67,11 @@ static const ControlState* hud_source=0;
 static const ControlState* aux_probe=0;
 static u32 aux_page=1u,route_bank=0u;
 static bool lfo_was_active=false;
+static bool preset_panel=false;
+static u32 preset_slot=0u,preset_status=0u,preset_confirm_us=0u,preset_partial=0u;
+// On-demand only. Separate copies permit verified saves without destroying
+// the most recent valid generation if a write is interrupted.
+static opxy::u8 preset_data[2][morph_presets::bytes];
 static u32 aux_diag_ticks=0u,aux_diag_clicks=0u,aux_diag_turns=0u;
 
 struct HudLatch { u32 primed, track, last_tempo, last_instrument, enabled; };
@@ -373,6 +380,7 @@ opxy::u32 hud_readonly_screen_route(opxy::u32 selected_page) {
 }
 void control_reset(ControlState& s) {
  reset_follow();
+ preset_panel=false;preset_status=preset_confirm_us=preset_partial=0u;
  midi_input.reset();sdk_morph_midi_clear();
  aux_page=1u;route_bank=0u;lfo_was_active=false;pad_enabled=false;pad_sensitivity=0;pad_curve=1u;pad_input.reset();sdk_morph_pad_request(false);s.active_tracks=255u;
  scramble_pending=0u;startup_captured=false;restored_pending=false;recorded_reference=false;transport_playing=false;movement_lane.reset();
@@ -731,6 +739,47 @@ inline void hud_apply_turns(ControlState& s,const HudTurnInput& input,bool muted
   s.scene[side][input.track][index]=scene_adjust(s.scene[side][input.track][index],steps);
  }
 }
+// Status: 0 ready, 1 saved, 2 loaded, 3 partial, 4 confirm, 5 bypass/stop,
+// 6 empty/corrupt, 7 I/O/context error, 8 capture needed.
+void preset_action(ControlState& s,bool save,bool muted) {
+ preset_confirm_us=0u;preset_partial=0u;
+ if(muted || s.mode || s.phase!=idle || (save && transport_playing)){preset_status=5u;return;}
+ if(!s.context_ready || !s.base_ready || !sdk_morph_session_context_ok()){preset_status=7u;return;}
+ opxy::morphport::ShiftSchema schemas[8]={};u32 patterns[10]={};
+ if(!sdk_morph_persist_identity(schemas,patterns)){preset_status=7u;return;}
+ bool valid[2]={};
+ for(u32 c=0;c<2;++c)valid[c]=morph_presets::valid(preset_data[c],
+     sdk_morph_preset_read(preset_slot,c,preset_data[c],morph_presets::bytes));
+ const u32 newest=!valid[0]?1u:!valid[1]?0u:
+     morph_presets::newer(morph_presets::get(preset_data[1]+12),morph_presets::get(preset_data[0]+12))?1u:0u;
+ if(save){
+  if(s.captured_mask[0]!=255u || s.captured_mask[1]!=255u){preset_status=8u;return;}
+  const bool any=valid[0] || valid[1];const u32 target=any?(newest^1u):0u;
+  const u32 generation=any?morph_presets::get(preset_data[newest]+12)+1u:1u;
+  morph_presets::encode(preset_data[target],generation,s.scene,s.captured_mask,schemas);
+  if(!morph_presets::valid(preset_data[target],morph_presets::bytes) || !sdk_morph_session_context_ok()){
+   preset_status=7u;return;
+  }
+  const u32 expected=morph_presets::checksum(preset_data[target]);
+  if(!sdk_morph_preset_write(preset_slot,target,preset_data[target],morph_presets::bytes)){
+   preset_status=7u;return;
+  }
+  const u32 count=sdk_morph_preset_read(preset_slot,target,preset_data[target],morph_presets::bytes);
+  preset_status=morph_presets::valid(preset_data[target],count) &&
+      morph_presets::checksum(preset_data[target])==expected &&
+      sdk_morph_session_context_ok()?1u:7u;
+  return;
+ }
+ if(!valid[0] && !valid[1]){preset_status=6u;return;}
+ if(!sdk_morph_session_context_ok()){preset_status=7u;return;}
+ // Every source track is captured by this version; reject incomplete pairs.
+ if(morph_presets::get(preset_data[newest]+16)!=255u ||
+    morph_presets::get(preset_data[newest]+20)!=255u ||
+    s.captured_mask[0]!=255u || s.captured_mask[1]!=255u){preset_status=8u;return;}
+ preset_partial=morph_presets::merge(preset_data[newest],s.scene,s.captured_mask,schemas);
+ preset_status=preset_partial?3u:2u;
+ // No control_reset, synth writes, S capture, origin/routing or LIVE changes.
+}
 void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  const u32 delay_track=sdk_morph_gui_track();
  const bool delay_eligible=delay_track<8u && sdk_morph_gui_ready() &&
@@ -797,10 +846,33 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  if(feedback && s.phase!=idle){s.fault=5u;s.phase=failed;}
  // BRAIN-style routing: any click banks, signed turns disable/enable.
  // Page changes consume old queued gestures; a turn never changes meaning.
+ if(preset_confirm_us){
+  preset_confirm_us=in.elapsed_us>=preset_confirm_us?0u:preset_confirm_us-in.elapsed_us;
+  if(!preset_confirm_us && preset_status==4u)preset_status=0u;
+ }
+ if(in.page_key>=1u && in.page_key<=4u){preset_panel=false;preset_confirm_us=0u;}
  if(in.page_key>=1u && in.page_key<=3u) {
   aux_page=in.page_key;clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
  }
- if(aux_page==3u) {
+ if(aux_page==3u && (clicks&8u)) {
+  preset_panel=!preset_panel;preset_confirm_us=0u;preset_status=0u;
+  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+ }
+ if(aux_page==3u && preset_panel) {
+  if(turns[0]) {
+   if(turns[0]>0 && preset_slot+1u<morph_presets::slots)++preset_slot;
+   if(turns[0]<0 && preset_slot)--preset_slot;
+   preset_confirm_us=0u;preset_status=0u;preset_partial=0u;
+  }
+  if(clicks&2u)preset_action(s,false,in.muted!=0u);
+  else if(clicks&4u) {
+   if(in.muted || s.mode || s.phase!=idle || transport_playing){preset_confirm_us=0u;preset_status=5u;}
+   else if(preset_confirm_us)preset_action(s,true,false);
+   else {preset_confirm_us=3000000u;preset_status=4u;}
+  }
+  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+ }
+ if(aux_page==3u && !preset_panel) {
   const bool before=pad_enabled;
   if(clicks&1u)pad_enabled=!pad_enabled;
   if(turns[0])pad_enabled=turns[0]>0;
@@ -912,6 +984,7 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
    else verify_tick(s);
   }
  }
+ out.display[8]=static_cast<i32>((preset_panel?1u:0u)|(preset_slot<<4u)|(preset_status<<8u)|(preset_partial<<16u));
  out.display[7]=(pad_enabled?1:0)|(sdk_morph_pad_waiting()?2:0)|((pad_sensitivity+90)<<8u)|(pad_curve<<16u);
  out.display[4]=static_cast<i32>(aux_page);
  out.display[5]=static_cast<i32>(s.active_tracks);

@@ -12,6 +12,7 @@
 
 static std::string calls;
 static bool gui, screens = true;
+void sdk_multifx_startup() { calls += "multifx "; }
 static int ready_state = 1;
 static const char* named;
 static u32 inserted;
@@ -74,11 +75,11 @@ int main() {
     // GUI role: each own page guards only its own engine; stock pages need none.
     calls.clear();
     sdk_startup_screen();
-    require(calls == "effect-page first-page first second-page second sampled drawn-page drawn player-page ");
+    require(calls == "multifx effect-page first-page first second-page second sampled drawn-page drawn player-page ");
     // A sample engine plays without its own screen: the screen never holds it back.
     calls.clear(); screens = false; drawn_screen = 0;
     sdk_startup_screen();
-    require(calls == "effect-page first-page second-page second sampled drawn-page drawn player-page ");
+    require(calls == "multifx effect-page first-page second-page second sampled drawn-page drawn player-page ");
     drawn_screen = 1;
 
     const u32 first = value(first_engine_id), second = value(second_engine_id);

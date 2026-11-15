@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "name": "MultiFX for Morph \u2014 removal-capable installer; native validation pending",
+  "base_payload_sha256": "52a2ab12353636bb6abb534eec6107697b1042b0a4c96990157da346b4c3dade",
+  "base_profile_sha256": "f06862700665de74c8e85b499d330e6807519cd43692ec453c7cbb2629922ee7",
+  "profile_sha256": "46a8d31a8afc0dfc908d17bd2ab98c50845fc7cd6be01db293bc7e13790d3fbc",
+  "files": {
+    "sdk/builder/core.mjs": {
+      "before": "9a9f0dd877467079293d2cb65c06ee22bd5e7db2bb63bca31d57a972e34166c9",
+      "after": "3d5126645d839b67a6ef0bd822e2434372bbb39b15eab7ddd7c6d659980109fd"
+    },
+    "sdk/profiles/opxy-1.2.1.json": {
+      "before": "f06862700665de74c8e85b499d330e6807519cd43692ec453c7cbb2629922ee7",
+      "after": "46a8d31a8afc0dfc908d17bd2ab98c50845fc7cd6be01db293bc7e13790d3fbc"
+    },
+    "sdk/sdk/include/opxy/multifx.hpp": {
+      "before": null,
+      "after": "fa394e0f42dd3a54123c5cc167f20b25321107d449088cf95c5cc8e0f057c778"
+    },
+    "sdk/sdk/platform/opxy-1.2.1/multifx_events.cpp": {
+      "before": null,
+      "after": "f4bfddb56e11d829a210b7972f211c57d2e1b80baf7dd0eb8715c14085554714"
+    },
+    "sdk/sdk/platform/opxy-1.2.1/multifx_resume.s": {
+      "before": null,
+      "after": "e1262075e42b8ede3cf9fdd7167cbce742d2cb98c8fdcd5a37fa73f96ef04949"
+    },
+    "sdk/sdk/platform/opxy-1.2.1/multifx_stock.cpp": {
+      "before": null,
+      "after": "4cd55950126da7e38b8d7e08892409bde0ed9b20382d13e641934c4376224f73"
+    },
+    "sdk/sdk/platform/opxy-1.2.1/multifx_ui.cpp": {
+      "before": null,
+      "after": "80d1a46b6886bbdd86d7b8a2ca0c54b692036dce7296dedca32a94fbf23adc64"
+    },
+    "sdk/sdk/platform/opxy-1.2.1/multifx_ui.hpp": {
+      "before": null,
+      "after": "6895ef38938992e280d3a11abedc0ce5be2205a040e5848fb70dca6c47da2845"
+    },
+    "sdk/sdk/platform/opxy-1.2.1/startup.cpp.in": {
+      "before": "8b03125a420985eeb6dc3de1eba69c4eaa92f6e7b73c6c51caa2cd5ba5ffe3d1",
+      "after": "f9659a46607ee7ea1d6edc5684ad87b5e4761e6a7f1785a21ccfc8c4915a7111"
+    },
+    "sdk/sdk/platform/opxy-1.2.1/synth_controls.cpp": {
+      "before": "4aec5e22afc474a10564275b17bc093a26f0af88f7075d6c8082564ccf2c0fdb",
+      "after": "0f7eaa97b1bb0232d490459fe7afdec70bc287e6fcd3b43e8646f05115683f2c"
+    },
+    "sdk/tests/fixtures/startup.cpp": {
+      "before": "0509608d17f5626e0d2721564b8cef0a5fe38f8d957510a1af02db03ef0a4e1c",
+      "after": "1f55df24d5bfb4ebb93d595b32d734a89a8aa7d57d52f4a46cf763d973fc4cd8"
+    },
+    "sdk/tooling/multifx.py": {
+      "before": null,
+      "after": "dc46283c8a199eb5e318ac546812c1d68b058396fb92b3adaa6965b1c9120351"
+    },
+    "sdk/tooling/native.py": {
+      "before": "89d9d83383c4571a2125023002e2ba4815ab85d7d71dbd3c3bdb773d5159377a",
+      "after": "f13dde1aae5bd2d68b1cab3c95898c3474faadaf0c73c11f97be0eafdfc8518d"
+    }
+  },
+  "previous_installer": "/workspace/scratch/e480ac684ffd/deliverables/XY_Machine_Manager_Add_Remove_20261115/installer",
+  "previous_toolchain": "/workspace/scratch/e480ac684ffd/deliverables/XY_Machine_Manager_Add_Remove_20261115/installer/sdk/local/toolchain",
+  "status": "Combined installer host checks passed; native build, Mac GUI and hardware acceptance pending",
+  "combined_morph_version": "1.3.0-dev / Gate40"
+}

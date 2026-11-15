@@ -1,0 +1,4 @@
+Combined edition: 18,348 actual Morph/SDK/controller/render boundary assertions passed.
+BYPASS reads over 1000 ticks / simulated second: 1360; at most 34 per tick.
+M1 fallback and route parity passed. See ../VALIDATION.md.
+Native build and device acceptance pending.

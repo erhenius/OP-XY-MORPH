@@ -3,6 +3,7 @@ import datetime,hashlib,json,os,shutil,subprocess,sys,threading,signal
 from pathlib import Path
 from backend import Builder as Base,ROOT,private_root,save,digest,verify_distribution,executable,pull_setup,open_device,read_remote
 from imports import snapshot,discover
+from selection import plan
 class Builder(Base):
  def __init__(self,emit=print):
   super().__init__(emit);self.cancelled=threading.Event();self.process=None;self.transferring=False
@@ -35,6 +36,9 @@ class Builder(Base):
    meta=json.loads((receipt/'result.json').read_text())
    if digest(self.job/'before/os.ldr')!=meta['after_sha256']:raise RuntimeError('Provenance does not match device OS')
    config['kit']=str(receipt/'native-kit/kit.json');config['prior_job']=str(receipt)
+   if meta.get('reused_original_kit'):
+    prior_config=json.loads((receipt/'config.json').read_text())
+    if prior_config.get('prior_job'):config['prior_job']=prior_config['prior_job']
    shutil.copy2(receipt/'layout-after.json',self.job/'before/layout.json');shutil.copy2(receipt/'build-after.json',self.job/'before/build.json')
   save(self.job/'config.json',config)
   self.node=executable(['/opt/homebrew/bin/node','/usr/local/bin/node','node'])
@@ -54,16 +58,26 @@ class Builder(Base):
   folder=(repo/pin.get('path','')).resolve()
   if not folder.is_relative_to(repo.resolve()):raise ValueError('Unsafe catalog source path')
   return folder
- def build_selected(self,selections,compiler_path=None,update_morph=False,calculate_only=False):
+ def build_selected(self,selections,compiler_path=None,update_morph=False,calculate_only=False,removals=()):
   verify_distribution()
-  if not selections and not update_morph:raise ValueError('Select at least one machine')
+  if not selections and not update_morph and not removals:raise ValueError('Select at least one machine')
   config=json.loads((self.job/'config.json').read_text());installed=self.inspection['selected'];kit=json.loads(Path(config['kit']).read_text());by_id={m['id']:m for m in kit['machines']}
+  plan(installed,[x['id'] for x in selections],removals,update_morph)
+  config['removals']=list(removals);config.pop('reuse_original',None)
+  if not selections and not update_morph and removals:
+   config.update(additions=[],replacements=[],unknown=[],reuse_original=True)
+   config.pop('calculation_kit',None);save(self.job/'config.json',config)
+   self.run('MEMORY',[self.node,ROOT/'memory.mjs',self.job])
+   if calculate_only:return json.loads((self.job/'memory.json').read_text())
+   self.run('FINALIZE',[self.node,ROOT/'engine.mjs','finalize',self.job]);self.snapshot_candidate()
+   return json.loads((self.job/'result.json').read_text())
   if update_morph and 'morphcapture' not in installed:raise ValueError('Morph update requires an installed Morph; use Install bundled Morph instead')
   config.pop('unknown',None);config.pop('calculation_kit',None)
   config['replacements']=['morphcapture'] if update_morph else []
   sources=[];provenance={};imports=self.job/'sources';imports.mkdir()
   prior=Path(config['prior_job']) if config.get('prior_job') else None
   for id in installed:
+   if id in removals:continue
    if id=='morphcapture' and update_morph:
     sources.append((id,ROOT/'machine'));continue
    prior_source=prior/'sources'/id if prior else None
@@ -99,6 +113,9 @@ class Builder(Base):
   save(self.job/'source-inputs.json',{id:str(source.resolve()) for id,source in sources})
   save(self.job/'sdk-hashes.json',{p.relative_to(ROOT/'sdk').as_posix():digest(p) for p in (ROOT/'sdk').rglob('*') if p.is_file() and '__pycache__' not in p.parts and 'local' not in p.parts})
   compiler=Path(compiler_path).expanduser().resolve() if compiler_path else ROOT/'sdk/local/toolchain'
+  if not compiler_path and not (compiler/'bin').is_dir() and (ROOT/'SDK_ADDITION.json').is_file():
+   previous=Path(json.loads((ROOT/'SDK_ADDITION.json').read_text()).get('previous_toolchain',''))
+   if (previous/'bin').is_dir():compiler=previous
   if not (compiler/'bin').is_dir():
    compiler=ROOT/'sdk/local/toolchain'
    if not (compiler/'bin').is_dir():self.run('TOOLCHAIN_FETCH',[sys.executable,ROOT/'sdk/sdk.py','toolchain','fetch'],ROOT/'sdk')
@@ -142,8 +159,11 @@ class Builder(Base):
    current={p.relative_to(self.job/'sources'/id).as_posix():digest(p) for p in (self.job/'sources'/id).rglob('*') if p.is_file()}
    if current!=files:raise ValueError('Calculated source snapshot changed')
   self.run('FINALIZE',[self.node,ROOT/'engine.mjs','finalize',self.job]);self.snapshot_candidate();return json.loads((self.job/'result.json').read_text())
- def calculate(self,selections,update_morph=False,compile_missing=False):
+ def calculate(self,selections,update_morph=False,compile_missing=False,removals=()):
   config=json.loads((self.job/'config.json').read_text());kit=json.loads(Path(config['kit']).read_text());machines={m['id']:m for m in kit['machines']}
+  plan(self.inspection['selected'],[x['id'] for x in selections],removals,update_morph)
+  config['removals']=list(removals);config['replacements']=['morphcapture'] if update_morph else []
+  config.pop('reuse_original',None)
   known=[];unknown=[]
   for item in selections:
    m=machines.get(item['id'])
@@ -154,7 +174,7 @@ class Builder(Base):
    if (self.job/'sources').exists():
     old=self.job;self.job=old.parent/datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f');self.job.mkdir()
     shutil.copytree(old/'before',self.job/'before');shutil.copy2(old/'stock.os.ldr',self.job/'stock.os.ldr');save(self.job/'config.json',config);save(self.job/'inspection.json',self.inspection)
-   return self.build_selected(selections,update_morph=update_morph,calculate_only=True)
+   return self.build_selected(selections,update_morph=update_morph,calculate_only=True,removals=removals)
   config['additions']=known;config['unknown']=unknown;config.pop('calculation_kit',None);save(self.job/'config.json',config)
   self.run('MEMORY',[self.node,ROOT/'memory.mjs',self.job]);return json.loads((self.job/'memory.json').read_text())
  def snapshot_candidate(self,offline_folder=None):

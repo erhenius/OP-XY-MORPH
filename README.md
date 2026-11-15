@@ -1,6 +1,6 @@
 # Morph for OP-XY
 
-**Morph v1.2.0** - pressure-pad update, pinned to hardware-tested **Gate39**.
+**Morph v1.3.0-dev** — A/B preset development build, based on Gate39 plus the S-tracking performance fix. Native build and hardware acceptance are pending.
 
 Capture two sounds across your instrument tracks, move toward either one, and return to a stored starting point. Choose which tracks participate, use the instrument HUD for performance and snapshot editing, or drive the movement with recorded automation and the stock LFO.
 
@@ -22,6 +22,10 @@ Capture two sounds across your instrument tracks, move toward either one, and re
 ![Morph AUX M3](docs/screens/aux-m3.png)
 
 M3 K1 selects PITCH/MORPH. K2 adjusts speed (-90% to +100%, then INSTANT). K3 selects SQRT, LINEAR or EXP. Enable LIVE on M1; release the pad to hold position.
+
+## A/B presets
+
+AUX M3 K4 opens 16 persistent A/B preset slots. K1 selects; K2 loads; K3 saves with a second press to confirm; K4 returns. Stop transport and use BYPASS. Incompatible tracks load shared M2/M3 values while retaining M1 and engine-specific SHIFT. S is excluded. See [A/B preset controls and compatibility](docs/AB-PRESETS.md).
 
 ## Start here
 
@@ -78,3 +82,5 @@ S-tracking fix: 18,248 integration assertions, including per-tick and per-second
 `morphcapture/` is the machine source. `builder/` contains the current source builder, an identical machine copy and the patched SDK 1.15 fork based on [Open-XY](https://github.com/etcetc000/open-xy) commit `6642b3c6165043d29d4c9c9429294a42b71f924f`. Morph uses private SDK access hooks; importing it into an arbitrary unmodified upstream SDK is not supported.
 
 The repository retains its **GPL-3.0** license. Vendored Open-XY SDK and legacy SDK components retain their **MIT** notices; see [third-party notices](NOTICE.md). Independent project; not affiliated with or endorsed by teenage engineering.
+
+Playback recall correction: A/B recall is allowed during playback in BYPASS. Only saving requires stopped transport. File reads run on the GUI thread; storage latency on hardware remains unmeasured.

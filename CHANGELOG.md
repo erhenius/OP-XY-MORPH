@@ -1,3 +1,14 @@
+# v1.3.0-dev — A/B preset development
+
+- Allow A/B recall during playback in BYPASS; saving still requires stopped transport.
+- Add 16 A/B-only preset slots on AUX M3 K4, with confirmed saves and BYPASS/stopped recall.
+- On instrument mismatch, recall shared M2/M3 fields while retaining M1 and synth SHIFT.
+- Validate complete files and keep alternating generations; never serialize S.
+- Include the prior bounded BYPASS S-tracking fix.
+- Bundle machine removal/undo, alphabetical lists, installed-machine filtering and preintegrated MultiFX SDK support.
+- Preserve exact reconstruction, retained IDs and removed-ID reservations.
+- Native/device acceptance pending.
+
 # Morph v1.2.0 — pressure-pad movement
 
 Pinned to Gate39. The owner confirms no regressions and correct feature operation on hardware.

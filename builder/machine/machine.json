@@ -2,5 +2,5 @@
   "schema": 1,
   "sdk": "1.15",
   "kind": "synth",
-  "description": "Morph Gate39 development: optional onboard pitch-pad rate movement, M3 mode selection and 150 ms HUD hold; Gate36a MIDI retained"
+  "description": "Morph Gate40 development: persistent A/B-only presets with M2/M3-only recall on instrument mismatch; bounded BYPASS S tracking"
 }

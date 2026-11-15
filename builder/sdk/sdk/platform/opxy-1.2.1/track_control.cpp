@@ -418,6 +418,8 @@ extern "C" bool sdk_control_turn_offer(u32 track, u32 slot, const i32* event) {
     return true;
 }
 
+#include "morph_preset_files.hpp"
+
 // Private Morph stored-current bridge: not general SDK APIs.
 extern "C" bool sdk_morph_persist_identity(opxy::morphport::ShiftSchema* schemas,u32* patterns) {
     if(!schemas || !patterns || word(kProjectLoading) || !morph_unique_owner())return false;

@@ -171,6 +171,9 @@
     ],
     "synth_shift": [
       "synthShift"
+    ],
+    "multifx": [
+      "multifx"
     ]
   },
   "patches": [
@@ -2339,6 +2342,49 @@
       "symbol": "sdk_morph_pad_event",
       "call": true,
       "service": "control"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0b5d58",
+      "file_offset": "0xecf94",
+      "length": 8,
+      "before": "00e80000fd052832",
+      "symbol": "sdk_multifx_event",
+      "call": false,
+      "service": "multifx"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d50dfc0",
+      "file_offset": "0x14521c",
+      "length": 4,
+      "before": "00e80000",
+      "symbol": "sdk_multifx_scratch_pair",
+      "call": false,
+      "name": "MultiFX: a send's paired scratch allocator, offset per chain stage",
+      "service": "multifx"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d50e048",
+      "file_offset": "0x1452a4",
+      "length": 4,
+      "before": "00e80000",
+      "symbol": "sdk_multifx_scratch",
+      "call": false,
+      "name": "MultiFX: a send's scratch allocator, offset per chain stage",
+      "service": "multifx"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d50f412",
+      "file_offset": "0x14666e",
+      "length": 4,
+      "before": "00e3594d",
+      "symbol": "sdk_multifx_lfo",
+      "call": true,
+      "name": "MultiFX: a send LFO's write, moved to the LFO slot's words",
+      "service": "multifx"
     }
   ],
   "compiler": "bfin-elf-gcc 8.0.0 (deanm1278/blackfin-plus-gnu e4408a1) + toolchain/gcc patches"

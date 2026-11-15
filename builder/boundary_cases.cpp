@@ -23,6 +23,7 @@ void verify_all(i32 v) {
         check(static_cast<i32>(bases[t][morphcapture::slots[p]])==v,"Stored parameter mismatch");
 }
 void follow_cycle() { for(u32 n=0;n<16u;++n){cycles+=400u*25000u;sdk_gui_tick();} }
+#include "preset_boundary_cases.hpp"
 int main() {
     sdk_aux.engine=aux_engine;sdk_aux.tick=aux_tick;aux_engines[11]=42;
     project_loading=1;sdk_gui_tick();
@@ -34,6 +35,7 @@ int main() {
     for(u32 t=0;t<8u;++t)for(u32 p=0;p<26u;++p)
       check(state.scene[0][t][p]==0x12000000 && state.scene[1][t][p]==0x12000000 && state.base[t][p]==0x12000000,"Startup A/B/S differ");
     check(sets==startup_sets && !state.mode && !state.origin_ready,"Startup wrote parameters or entered LIVE");
+    check_presets();
     fill(0x22000000);selected=11u;sdk_gui_tick();selected=0;sdk_gui_tick();follow_cycle();
     check(state.scene[0][0][0]==0x12000000 && state.base[0][0]==0x22000000,"BYPASS must track S without recapturing A");
     // Performance regression: simulate 1000 GUI ticks over one second.
