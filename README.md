@@ -1,6 +1,10 @@
 # Morph for OP-XY
 
+<<<<<<< HEAD
 Morph captures A/B scenes across eight instrument tracks and moves supported sound parameters towards either scene. AUX pages handle capture, routing, the pressure pad and sixteen A/B presets; instrument HUDs expose scene parameters beside the sound controls.
+=======
+**Morph v1.3.0-dev** — A/B preset development build, based on Gate39 plus the S-tracking performance fix. Native build and hardware acceptance are done. No regressions found in 2 hardware tests and features function as expected.
+>>>>>>> 13d03392216a6790333c6b51f3cb8be5617b93ff
 
 Current source: **1.3.1-dev-gui2d2**, targeting the supplied custom SDK integration for **stock OS 1.2.1**. This is a source repository, not a flashable OS image or an upstream catalog submission.
 
