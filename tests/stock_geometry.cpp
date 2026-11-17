@@ -19,7 +19,8 @@ int main(){
  for(u32 type: {9u,17u})for(i32 cut:levels)for(i32 res:levels){
   scene.filter_type=type;scene.a[14]=scene.b[14]=cut;scene.a[15]=scene.b[15]=res;
   init_frame(frame);filter(frame,scene,0);filter(frame,scene,1);
-  for(u32 side=0;side<2;++side){const auto& p=frame.paths[side*2+1];
+  for(u32 side=0;side<2;++side){auto p=frame.paths[side*2+1];
+   for(u32 i=0;i<32;++i){p.points[i].x=(p.points[i].x+p.points[63-i].x)/2;p.points[i].y=(p.points[i].y+p.points[63-i].y)/2;}
    for(u32 i=0;i<32;++i){check(p.points[i].x>=-65536 && p.points[i].x<=64716);if(i)check(type==17?p.points[i].y<=p.points[i-1].y:p.points[i].y>=p.points[i-1].y);}
   }
   auto p=stock_plot::resonance_label(scene.a+14,0);

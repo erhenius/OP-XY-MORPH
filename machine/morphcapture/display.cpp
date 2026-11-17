@@ -7,7 +7,7 @@
 namespace morphcapture {
 namespace d=opxy::draw;
 using opxy::u32;using opxy::i32;
-inline void display_reset(DisplayState& s){s.serial=0;s.track=0xffffffffu;for(u32 k=0;k<4;++k)s.flash[k]=0;}
+inline void display_reset(DisplayState& s){s.serial=0;s.track=0xffffffffu;for(u32 k=0;k<4;++k){s.flash[k]=0;s.curves[k].kind=0;}}
 inline void node(Frame& f,u32 n,i32 x,i32 y,i32 scale=1024,u32 color=0,d::Paint paint=d::keep){d::place(f,n,x*1024,y*1024,scale,color,paint);}
 inline void txt(Frame& f,u32 n,i32 x,i32 y,const char* s,i32 scale=1024){d::text(f,n,x*1024,y*1024,scale,s);}
 inline i32 norm(i32 v){return v<0?-1:static_cast<i32>(((static_cast<u32>(v)>>11)*99u+0x7ffffu)/0xfffffu);}
@@ -53,7 +53,7 @@ inline void aux_m2(Frame& f){
  for(u32 k=0;k<9;++k){f.texts[k]=old.texts[18+k];f.texts[k].scale=old.texts[18+k].scale*static_cast<i32>(sizes[k])/15;}
  for(u32 k=0;k<4;++k)d::header(f,k,old.header[k]);
 }
-inline void aux(Frame& f,const DisplayState& s){
+inline void aux(Frame& f,DisplayState& s){
  const u32 page=static_cast<u32>(opxy::control::from_control(4u));
  if(page==2){aux_m2(f);return;}
  for(u32 k=0;k<4;++k)node(f,ui::header0+k,120*static_cast<i32>(k),0);
@@ -65,7 +65,8 @@ inline void aux(Frame& f,const DisplayState& s){
   node(f,ui::modeMorph,420,49,1100,icon_shade(s,3),d::fill_and_stroke);
   node(f,ui::modeMorphB,420,49,1100,icon_shade(s,3),d::stroke);node(f,ui::modeMorphPixel,420,49,1100,icon_shade(s,3),d::fill_and_stroke);
   node(f,ui::modeMorphRed,420,49,1100,icon_shade(s,3)==0?1:5,d::fill_and_stroke);node(f,ui::modeMorphSquare,420,49,1100);
-  sweep(f,opxy::control::from_control(2u),(mode&16u)!=0,false);return;
+  const i32 travel=opxy::control::from_control(2u);sweep(f,travel,(mode&16u)!=0,false);
+  return;
  }
  const u32 pad=static_cast<u32>(opxy::control::from_control(7u));
  const u32 preset=static_cast<u32>(opxy::control::from_control(8u));
@@ -74,11 +75,27 @@ inline void aux(Frame& f,const DisplayState& s){
  node(f,ui::arrow,180,44,1024,icon_shade(s,1),d::stroke);
  node(f,ui::pair,300,44,1024,icon_shade(s,2),d::fill_and_stroke);node(f,ui::pairB,300,44,1024,icon_shade(s,2),d::stroke);
  node(f,ui::bookmark,420,44,1024,icon_shade(s,3),d::stroke);
- node(f,ui::curve0+((pad>>16)&3u)%3u,86,132);
- const i32 sens=static_cast<i32>((pad>>8)&255u)-90;
- node(f,ui::vector,91,176,64+(sens<0?-sens:sens)*16,sens<0?1:0,d::stroke);
+ node(f,ui::padLeft,136,36,492,1,d::stroke);
+ node(f,ui::padRight,224,36,492,0,d::stroke);
+ node(f,ui::gainUp,256,36,492,0,d::stroke);
+ node(f,ui::gainDown,344,36,492,1,d::stroke);
+ // The authored arrow points 39.8 degrees above the horizontal.
+ d::turn(f,ui::padLeft,d::rotation(2198));
+ d::turn(f,ui::padRight,d::rotation(398));
+ d::turn(f,ui::gainUp,d::rotation(-502));
+ d::turn(f,ui::gainDown,d::rotation(1298));
+ node(f,ui::curve0+((pad>>17)&3u)%3u,138,129,896);
+ const i32 sens=static_cast<i32>((pad>>8)&511u)-90;
+ const i32 pad_scale=sens<0?64-sens*16:64+d::clamp(sens,0,200)*11;
+ node(f,ui::vector,91,176,pad_scale,sens<0?1:0,d::stroke);
  if(sens<0)d::turn(f,ui::vector,d::rotation(1800));
- if(sens==101)node(f,ui::infinity,155,201);
+ if(sens==201)node(f,ui::infinity,155,201);
+ const i32 percent=static_cast<i32>((pad>>20)&127u)*5-95;
+ if(percent){
+  const i32 scale=percent<0?96-percent*6:64+percent*5;
+  node(f,ui::hudVector,91,176,scale,percent<0?1:0,d::stroke);
+  d::turn(f,ui::hudVector,d::rotation(percent<0?900:-900));
+ }
  const u32 selected=(preset>>4)&15u;
  for(u32 k=0;k<16;++k){const i32 x=255+static_cast<i32>(k%4)*54,y=76+static_cast<i32>(k/4)*32;
   // Cell fills stay authored black; only one movable node supplies selection.
@@ -91,20 +108,128 @@ inline void aux(Frame& f,const DisplayState& s){
  const char* msg=status==1?"Saved":status==2?"Loaded":status==3?"M1 preserved":status==5?"BYPASS required":status==6?"Empty or damaged":status==7?"File/context error":status==8?"Capture A/B first":"";
  txt(f,23,252,215,msg,720);
 }
-// Normalized stock ADSR Bezier templates sampled at 32 vertices and retraced.
+// Compare full inputs, not the lossy renderer key. Cache only curve geometry;
+// placement, highlight colours, labels and snapshot reads remain live.
+inline bool curve_cached(const CurveCache* c,u32 kind,const i32* values){
+ if(!c || c->kind!=kind)return false;
+ for(u32 i=0;i<4;++i)if(c->values[i]!=values[i])return false;
+ return true;
+}
+inline void curve_save(CurveCache* c,u32 kind,const i32* values,const Frame::path_type& path){
+ if(!c)return;
+ c->path=path;for(u32 i=0;i<4;++i)c->values[i]=values[i];c->kind=kind;
+}
+// Turn a retraced centreline into a finite-width, filled ribbon. Flat end
+// faces replace the degenerate 180-degree stroke joins at the visible ends.
+// All geometry stays Q10; no floating point, allocation or SDK changes.
+inline opxy::u32 root_floor(opxy::u32 n){
+ u32 r=0,bit=1u<<30;
+ while(bit>n)bit>>=2;
+ while(bit){if(n>=r+bit){n-=r+bit;r=(r>>1)+bit;}else r>>=1;bit>>=2;}
+ return r;
+}
+inline void curve_ribbon(Frame& f,u32 p,bool sustain=false){
+ d::Point center[32];for(u32 i=0;i<32;++i)center[i]=f.paths[p].points[i];
+ for(u32 i=0;i<32;++i){
+  // ADSR vertices 19..22 bracket the horizontal hold (including the
+  // duplicated stage junctions). Use its exact normal at both ends;
+  // neighbouring curved tangents would taper the entire hold segment.
+  if(sustain && i>=19 && i<=22){
+   f.paths[p].points[i]={center[i].x,center[i].y+320};
+   f.paths[p].points[63-i]={center[i].x,center[i].y-320};
+   continue;
+  }
+  u32 a=i,b=i;
+  while(a && center[a].x==center[i].x && center[a].y==center[i].y)--a;
+  while(b<31 && center[b].x==center[i].x && center[b].y==center[i].y)++b;
+  i32 dx=center[b].x-center[a].x,dy=center[b].y-center[a].y;
+  // Bound squared length and multiplication on the 32-bit target.
+  while(dx>16383 || dx< -16383 || dy>16383 || dy< -16383){dx/=2;dy/=2;}
+  while((dx || dy) && dx<4096 && dx> -4096 && dy<4096 && dy> -4096){dx*=2;dy*=2;}
+  const i32 length=static_cast<i32>(root_floor(static_cast<u32>(dx*dx+dy*dy)));
+  const i32 nx=length?-dy*320/length:0,ny=length?dx*320/length:320;
+  f.paths[p].points[i]={d::clamp(center[i].x+nx,-65536,65536),d::clamp(center[i].y+ny,-65536,65536)};
+  f.paths[p].points[63-i]={d::clamp(center[i].x-nx,-65536,65536),d::clamp(center[i].y-ny,-65536,65536)};
+ }
+}
+// Offset curves can cross at a tight reversal (zero attack) or near a
+// shallow sustain/release join. Untangle the boundary without moving vertices.
+// Bounding boxes reject almost all pairs before the exact orientation tests.
+// ADSR ribbon bounds are within x +/-44 and y +/-20 local pixels.
+// Thus each absolute orientation product fits in unsigned 32 bits even
+// when their signed difference would not. Compare sign/magnitude instead
+// of constructing that difference with costly 64-bit multiplication.
+static_assert(90112ull*40960ull<=0xffffffffull,"ADSR orientation products must fit u32");
+inline i32 edge_side(const d::Point& a,const d::Point& b,const d::Point& c){
+ const i32 dx=b.x-a.x,dy=b.y-a.y,cx=c.x-a.x,cy=c.y-a.y;
+ const u32 first=static_cast<u32>(dx<0?-dx:dx)*static_cast<u32>(cy<0?-cy:cy);
+ const u32 second=static_cast<u32>(dy<0?-dy:dy)*static_cast<u32>(cx<0?-cx:cx);
+ const bool negative_first=first && ((dx<0)!=(cy<0));
+ const bool negative_second=second && ((dy<0)!=(cx<0));
+ if(negative_first!=negative_second)return negative_first?-1:1;
+ if(first==second)return 0;
+ return ((first>second)!=negative_first)?1:-1;
+}
+inline bool opposite(i32 a,i32 b){return (a<0 && b>0)||(a>0 && b<0);}
+inline bool crossed(const d::Point& a,const d::Point& b,const d::Point& c,const d::Point& e){
+ const i32 ax0=a.x<b.x?a.x:b.x,ax1=a.x>b.x?a.x:b.x;
+ const i32 ay0=a.y<b.y?a.y:b.y,ay1=a.y>b.y?a.y:b.y;
+ const i32 bx0=c.x<e.x?c.x:e.x,bx1=c.x>e.x?c.x:e.x;
+ const i32 by0=c.y<e.y?c.y:e.y,by1=c.y>e.y?c.y:e.y;
+ if(ax1<=bx0 || bx1<=ax0 || ay1<=by0 || by1<=ay0)return false;
+ return opposite(edge_side(a,b,c),edge_side(a,b,e)) && opposite(edge_side(c,e,a),edge_side(c,e,b));
+}
+inline u32 untangle_envelope(Frame& f,u32 p){
+ d::Point* q=f.paths[p].points;u32 edits=0;
+ // Sweep edges in left-to-right order; disjoint x ranges cannot cross.
+ // This avoids scanning all 2016 edge pairs after each local repair.
+ unsigned char order[64];i32 left[64];
+ for(u32 pass=0;pass<64;++pass){
+  u32 count=0;
+  for(u32 i=0;i<64;++i){
+   const d::Point a=q[i],b=q[(i+1)%64];
+   if(a.x==b.x && a.y==b.y)continue;
+   left[i]=a.x<b.x?a.x:b.x;
+   u32 at=count;while(at && left[order[at-1]]>left[i]){order[at]=order[at-1];--at;}
+   order[at]=static_cast<unsigned char>(i);++count;
+  }
+  bool changed=false;
+  for(u32 a=0;a<count && !changed;++a){
+   const u32 i=order[a];const i32 right=q[i].x>q[(i+1)%64].x?q[i].x:q[(i+1)%64].x;
+   for(u32 b=a+1;b<count;++b){
+    const u32 j=order[b];if(left[j]>right)break;
+    const u32 lo=i<j?i:j,hi=i>j?i:j;
+    if(hi==lo+1 || (lo==0 && hi==63))continue;
+    if(!crossed(q[i],q[(i+1)%64],q[j],q[(j+1)%64]))continue;
+    for(u32 x=lo+1,y=hi;x<y;++x,--y){const d::Point tmp=q[x];q[x]=q[y];q[y]=tmp;}
+    ++edits;changed=true;break;
+   }
+  }
+  if(!changed)break;
+ }
+ return edits;
+}
+// Normalized stock ADSR Bezier templates sampled at 32 centreline vertices.
 // Release is mirrored, exactly as the stock envelope control contract specifies.
 inline i32 mix(i32 a,i32 b,i32 t){return a+(b-a)*t/1024;}
 inline i32 bez(i32 a,i32 b,i32 c,i32 z,i32 t){return mix(mix(mix(a,b,t),mix(b,c,t),t),mix(mix(b,c,t),mix(c,z,t),t),t);}
 // Coordinates remain Q10 through Bezier evaluation and placement.
 // Never round a curve to whole pixels before scaling it.
 inline i32 extent(i32 v,i32 range){return (v>>16)*range/32767;}
-inline void envelope(Frame& f,u32 p,const i32* v,i32 x,i32 y,bool edit){
+inline void envelope(Frame& f,u32 p,const i32* v,i32 x,i32 y,bool edit,CurveCache* cache=0){
+ if(curve_cached(cache,1,v)){
+  f.paths[p]=cache->path;
+  d::place(f,p,x*1024,y*1024+256,1792,edit?1:0,d::fill_and_stroke);return;
+ }
  for(u32 i=0;i<32;++i){
   f.paths[p].points[i]=stock_plot::envelope(v,i);
   f.paths[p].points[63-i]=f.paths[p].points[i];
  }
+ curve_ribbon(f,p,true);
+ untangle_envelope(f,p);
  u32 hash=2166136261u;for(u32 i=0;i<4;++i)hash=(hash^static_cast<u32>(v[i]>>16))*16777619u;f.paths[p].key=hash|0x80000000u;
- d::place(f,p,x*1024,y*1024+256,1792,edit?1:0,d::stroke);
+ curve_save(cache,1,v,f.paths[p]);
+ d::place(f,p,x*1024,y*1024+256,1792,edit?1:0,d::fill_and_stroke);
 }
 inline void hud_m1(Frame& f,const hud::Snapshot& s){
  const u32 slots[26]={0,1,2,3,4,5,6,7,8,9,10,11,13,15,16,17,18,19,20,21,22,23,32,33,34,35};
@@ -138,7 +263,7 @@ inline void shift(Frame& f,const hud::Snapshot& s){
 }
 // Stock-resource wireframe plots; values stay next to their controls instead
 // of occupying prose rows across the graph. All curve coordinates are Q10.
-inline void filter(Frame& f,const hud::Snapshot& s,u32 side){
+inline void filter(Frame& f,const hud::Snapshot& s,u32 side,CurveCache* cache=0){
  const i32 row=static_cast<i32>(side)*104,cy=60+row;
  const i32* v=(side?s.b:s.a)+14;const bool edit=s.edit_side==side;
  const u32 body=side*2,edge=body+1;
@@ -150,6 +275,9 @@ inline void filter(Frame& f,const hud::Snapshot& s,u32 side){
  for(u32 k=0;k<4;++k)node(f,axis+k,62,94+row);
  const char* labels[5]={"50","1k","2k","5k","20kHz"};const i32 xs[5]={62,139,193,241,298};
  for(u32 k=0;k<5;++k)txt(f,6+side*5+k,xs[k],105+row,labels[k],410);
+ const i32 geometry_values[4]={v[0],s.filter_type==18?v[3]:0,static_cast<i32>(s.filter_type),0};
+ if(curve_cached(cache,2,geometry_values))f.paths[edge]=cache->path;
+ else {
  // Scale the actual stock LP/HP cubic outlines into the approved plot area.
  for(u32 i=0;i<32;++i){
   d::Point q=stock_plot::filter_response(v[0],s.filter_type==17,i,row);
@@ -184,11 +312,14 @@ inline void filter(Frame& f,const hud::Snapshot& s,u32 side){
    f.paths[edge].points[63-i]=q;
   }
  }
+ curve_ribbon(f,edge);
+ }
  u32 key=2166136261u;key=(key^static_cast<u32>(v[0]>>16))*16777619u;
  key=(key^static_cast<u32>((s.filter_type==18?v[3]:0)>>16))*16777619u;key=(key^s.filter_type)*16777619u;key&=0x7fffffffu;if(!key)key=1u;
  f.paths[body].key=key;f.paths[edge].key=key;
+ if(!curve_cached(cache,2,geometry_values))curve_save(cache,2,geometry_values,f.paths[edge]);
  // The closed body remains hidden: only the response edge is wanted.
- node(f,edge,190,cy,2048,edit?1:3,d::stroke);
+ node(f,edge,190,cy,2048,edit?1:3,d::fill_and_stroke);
  // Stock-style floating cutoff and resonance values, plus envelope/key icons.
  const u32 text=edit?16+side*4:2;
  char value[3];
@@ -227,7 +358,7 @@ inline void display(DisplayState& state,const d::Input& input,Frame& f){
  node(f,ui::divider,0,0);sweep(f,s.travel,s.mode!=0,true);
  if(s.shifted&&s.module!=0){shift(f,s);return;}
  if(s.module==0){hud_m1(f,s);return;}
- if(s.module==2){filter(f,s,0);filter(f,s,1);return;}
+ if(s.module==2){filter(f,s,0,&state.curves[1]);filter(f,s,1,&state.curves[3]);return;}
  node(f,ui::hudHorizontal,0,0);node(f,ui::hudVertical,0,0);
  for(u32 side=0;side<2;++side)for(u32 bank=0;bank<2;++bank){
   const i32 x=10+static_cast<i32>(bank)*177,y=10+static_cast<i32>(side)*104;
@@ -235,7 +366,7 @@ inline void display(DisplayState& state,const d::Input& input,Frame& f){
   if(focus)node(f,ui::envelopeTitle0+p*2,x,y);
   txt(f,focus?24+p:p,x+4,y+14,bank?"FILTER":"AMP",819);
   node(f,ui::envelopeScene0+p*2,x+(bank?51:37)+12,y+10);
-  if(side?s.captured_b:s.captured_a)envelope(f,p,(side?s.b:s.a)+(bank?22:8),x+80,y+62,s.edit_side==side && focus);
+  if(side?s.captured_b:s.captured_a)envelope(f,p,(side?s.b:s.a)+(bank?22:8),x+80,y+62,s.edit_side==side && focus,&state.curves[p]);
  }
 }
 }

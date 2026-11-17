@@ -1,4 +1,4 @@
-# Morph quick reference — 1.3.1-dev-gui2d2
+# Morph quick reference — 1.3.1-dev-gui2d16
 
 ## AUX M1
 
@@ -21,11 +21,14 @@ Existing eight-track inclusion controls and bank selection are unchanged.
 | Control | Action |
 | --- | --- |
 | K1 press or turn | Switch pitchbend / Morph pad mode |
-| K2 press | Cycle SQRT → LINEAR → EXP |
-| K2 turn | Adjust sensitivity; maximum is instant (∞) |
-| K3 or K4 turn | Select slots 1–16 in numerical order |
+| K2 press | Cycle Light Touch → LINEAR → EXP |
+| K2 turn | Adjust pad speed from −90% to +200%, then Instant (∞) |
+| K3 turn | Set held HUD K4 sensitivity from −95% to +300% in 5% steps |
+| K4 turn | Select slots 1–16 in numerical order |
 | K3 press | Load selected A/B preset |
 | K4 press | Save/replace selected A/B preset immediately |
+
+K2 controls the horizontal pad vector. K3 controls the vertical HUD vector from the same origin. White points up for increased HUD sensitivity and red points down for decreased sensitivity. At 0%, the HUD uses the original speed. New projects start at +100%. Companions from before gui2d15 recall at 0%.
 
 Save and load require BYPASS, but playback may continue. The grid is red-striped while LIVE. A preset contains A and B, never S. For an incompatible instrument, M1 and instrument-specific SHIFT settings stay as they are; compatible M2/M3 fields load. A failed or damaged read does not partially apply a scene.
 
@@ -39,7 +42,7 @@ HUD M2 uses red only for the selected scene/envelope; AMP/FILTER title highlight
 
 ## gui2d2 display details
 
-AUX M3 uses smooth square SQRT/EXP curves. All sixteen preset slots are selectable with one active highlight. Instrument menu paint hides after 1.5 seconds of an eligible held HUD; menu actions remain available.
+AUX M3 uses smooth square Light Touch/EXP curves. All sixteen preset slots are selectable with one active highlight. Instrument menu paint hides after 1.5 seconds of an eligible held HUD; menu actions remain available.
 
 Dynamic filter: K1 low cut / high-pass cutoff, K2 compression (C), K3 distortion (D), K4 high cut / low-pass cutoff. Cutoff edges are independent. C/D bars are parameter amounts. Other filters use the matching stored model and stock-derived outlines with a moving resonance value.
 

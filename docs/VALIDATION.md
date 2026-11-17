@@ -8,25 +8,26 @@
 | gui2d | Square plot, preset stepping/selection, 1.5s menu paint timeout, SHIFT colors, stock-derived envelope/LP/HP plots, stored filter-model source and moving resonance value |
 | gui2d1 | Fixed adjacent clipping conditions rejected by `-Werror=misleading-indentation`; owner reported no regression and features working |
 | gui2d2 | Dynamic K1/K4 independent cutoff edges; C/D bars follow K2/K3. AUX sqrt/exp malformed mixed absolute/relative steps replaced with native cubic paths |
+| gui2d14 | Owner reported smooth routed encoder movement on hardware |
+| gui2d16 | Public source package with AUX M3 controls and curves. Temporary sweep diagnostics removed |
 
-After gui2d2 delivery the owner replied positively and requested documentation updates. There is no detailed native build log, memory report, CPU profile or comprehensive gui2d2 hardware checklist in this package. Do not invent those results. Minor envelope streaks at attack zero or maximum release are explicitly accepted and not a pending repair.
+gui2d14 was reported smooth on hardware. gui2d16 is the current public source release. Device testing and native memory or CPU measurements for gui2d16 are unrecorded here.
 
-## Host checks
+## gui2d16 host checks
 
-- 10,647 GUI invariants, UBSan; frame 8,568 host bytes, display state 24 bytes.
-- 137,088 stock-derived geometry contracts, UBSan.
-- 256 dynamic control-isolation checks.
-- 202 sensitivity artwork samples checked against analytic square curves.
-- 527,606 menu timeout/traversal assertions across 2,040 combinations.
-- 76 focused controller/compositor checks, including direction-only slot movement and stored filter model.
-- 18,350 original installer boundary checks with the original bundled machine against the proposed SDK.
-- Strict host display compilation with C++11, freestanding restrictions, `-Wall -Werror`.
+- 10,878 GUI invariants with UBSan. The host frame is 8,708 bytes and display state is 2,168 bytes.
+- 137,088 geometry contracts, 256 dynamic control-isolation checks and 527,606 timeout/compositor assertions.
+- Both AUX M3 curves match all 8,192 sampled pressure values within 0.11 display pixel.
+- 293 controller and compositor checks include preset navigation, all 80 held-K4 gains and migration of the former Instant setting.
+- Additional host runs covered the physical K4 input sampler, pad rate against a wide-integer reference, and routed encoder movement on up to eight tracks.
+- Generated SDK bindings compiled on the host with warnings treated as errors.
+- The original installer boundary suite recorded 18,350 checks against the bundled baseline machine.
 
-`tools/check.py` reruns the focused machine checks. `tools/prepare_sdk.py` runs the original authenticated preparation and bundled-machine boundary suite. Packaging verification is recorded in `REPOSITORY_CHECKS.txt`.
+`tools/check.py` reruns the focused machine suite. `tools/prepare_sdk.py` prepares the SDK and runs the original baseline boundary suite.
 
-## Known test limitations
+## Historical SDK suite results
 
-The prior full SDK check ran 549 tests: 18 failures, 15 errors and 39 skips. Failing/error test names matched the unchanged active SDK, including missing Git metadata and temporary private-path policy classification. The logs are in `docs/validation/`. This is not a passing full SDK suite.
+The prior full SDK run recorded 18 failures, 15 errors and 39 skips across 549 tests. Failing/error test names matched the unchanged active SDK, including missing Git metadata and temporary private-path policy classification. The logs are in `docs/validation/`. This is not a passing full SDK suite.
 
 The historical full boundary harness with gui2c or the current machine fails an obsolete `M3 K4 did not open presets` expectation. It describes the removed preset-panel interaction. The focused current-machine harness is separate; no assertion was silently disabled in the original harness.
 

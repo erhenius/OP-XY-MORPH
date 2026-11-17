@@ -2,7 +2,7 @@
 
 Read README.md, docs/VALIDATION.md and docs/AI_INSTALLATION_SUPPORT.md first. The current machine is machine/morphcapture, not vendor/installer-base/machine. Current user controls are documented in docs/Morph-Quick-Reference.pdf and machine/morphcapture/QUICK_REFERENCE.md.
 
-- Preserve passing behaviour. The owner accepted minor envelope streaks at zero attack and maximum release and explicitly asked not to fix them.
+- Preserve passing behaviour. gui2d16 is the public source release. gui2d14 is the hardware-confirmed smooth-sweep baseline. Consult docs/VALIDATION.md for current evidence.
 - Do not confuse AUX M3 sensitivity curves with instrument M3 filter outlines.
 - Keep stock/editor input behaviour separate from visual changes. The 1.5-second menu timeout hides paint; it does not remove menu actions.
 - Leave vendor/installer-base unchanged. Its payload manifest is verified before SDK preparation. Make SDK changes as a separately reviewed exact-base addition.

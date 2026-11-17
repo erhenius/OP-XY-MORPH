@@ -6,7 +6,7 @@ This document describes the bundled, pinned SDK edition. It is not a claim about
 
 Use the working Manager and the device's own profile. Preserve the previous successful job and backups. Scan the installed setup before selecting changes; retain unrelated machines.
 
-- Already on the gui2d SDK edition: import `release/Morph_gui2d2_Source.zip` and select Replace installed Morph. No SDK reimport.
+- Already on the gui2d SDK edition: import `release/Morph_gui2d16_Source.zip` and select Replace installed Morph. No SDK reimport.
 - On the matching earlier active GUI SDK: import `integration/Morph_gui2d_SDK_Addition.zip`, open the newly prepared installer, scan again, and import the current source ZIP.
 - Different edition: let the importer check it. If exact-base validation fails, compare SDK/profile identities and installed integrations. Do not force the manifest or erase other SDK changes.
 
@@ -71,7 +71,7 @@ For transfer problems, close competing MTP clients and follow the documented hos
 
 Check capture A/B, S, LIVE/BYPASS, track inclusion, automation, pad and MIDI movement, preset save/load, and the instrument HUD. In particular:
 
-- AUX M3: smooth square SQRT/EXP plot; all sixteen slots; K2 click cycles curve; K3 loads and K4 saves in BYPASS, including during playback.
+- AUX M3: K2 sets pad sensitivity and cycles Light Touch, Linear and EXP. K3 sets held-K4 HUD sensitivity. K4 selects a preset, K3 loads it and K4 saves it in BYPASS, including during playback.
 - HUD: menu paint disappears after 1.5 seconds of eligible track hold; stock menu functionality is retained.
 - Dynamic filter: K1 low cut, K2 compression, K3 distortion, K4 high cut. The graphic is schematic, not a frequency-calibrated DSP measurement.
 - Minor envelope streaks at zero attack/maximum release were accepted by the owner and intentionally left unchanged.

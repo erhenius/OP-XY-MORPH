@@ -15,7 +15,7 @@ Morph is a custom OP-XY machine that captures **A and B scenes across all eight 
 
 AUX is Morph's home for capture, routing, pad settings and presets. Hold a selected instrument track to open its **Morph HUD**, where you can inspect and edit the captured scenes beside the sound controls.
 
-**Source version:** `1.3.1-dev-gui2d2` · **Firmware baseline:** stock OS `1.2.1` with the supplied SDK integration.
+**Source version** `1.3.1-dev-gui2d16` · **Firmware baseline** stock OS `1.2.1` with the supplied SDK integration.
 
 ## Read the circles
 
@@ -35,13 +35,13 @@ AUX is Morph's home for capture, routing, pad settings and presets. Hold a selec
 
 ![Eight Morph screens: AUX capture, routing and pad/presets; instrument, envelope and filter HUDs; dynamic filter and SHIFT sends](docs/images/morph-eight-screens.gif)
 
-This 12-second loop uses the actual gui2d2 display renderer with scripted example inputs and a substitute preview font. Each tile demonstrates its own controls; it is not a recording of eight simultaneous device screens. The loop has no audio. [View the static collage](docs/images/morph-eight-screens.png).
+This 12-second loop uses the gui2d16 renderer with scripted inputs and a substitute preview font. Each tile demonstrates its own controls. [View the static collage](docs/images/morph-eight-screens.png).
 
 ### AUX: capture, route and perform
 
 - **M1 — capture & sweep.** Capture A and B, set the return snapshot S, move towards either scene, and switch LIVE/BYPASS.
 - **M2 — track routing.** Include or exclude each instrument track. Capture still includes all eight tracks; routing controls which ones Morph changes.
-- **M3 — pad & presets.** Choose pitch bend or Morph pad control, adjust sensitivity, select SQRT/LINEAR/EXP response, and save or load sixteen A/B presets.
+- **M3 — pad & presets.** Choose pitch bend or Morph pad control, adjust pad and HUD sensitivity, and save or load sixteen A/B presets. The curve drawing follows the active pad response.
 - **M4 — stock LFO.** Modulate Morph's movement control using the normal LFO interface. LIVE must be enabled.
 
 ### Instrument HUD: edit the scenes
@@ -73,13 +73,13 @@ Press **K3** on AUX M1 to explicitly set S. S follows stored instrument settings
 
 | Feature | How it works |
 | --- | --- |
-| **Encoder** | AUX M1 K4 sweeps. In the HUD, hold K4 while turning to sweep. |
-| **Pressure pad** | AUX M3 K1 toggles pad mode; K2 turns change speed and K2 presses cycle the curve. Down/left moves towards A, up/right towards B. Release holds position. Enable LIVE first. |
+| **Encoder** | AUX M1 K4 sweeps. In the HUD, hold K4 while turning to sweep. Set its sensitivity with AUX M3 K3 from −95% to +300% in 5% steps. |
+| **Pressure pad** | AUX M3 K1 toggles pad mode; turn K2 from −90% to +200% or Instant. Press K2 to cycle Light Touch, Linear and EXP. At half pressure they give about 80%, 50% and 15% of full speed. Down/left moves towards A, up/right towards B. Release holds position. Enable LIVE first. |
 | **MIDI** | Receive channel 12, CC15: `0` = A, `63/64` = movement origin, `127` = B. Enable LIVE first. |
 | **Recording** | While playing, hold RECORD and turn AUX M1 K4. Only this physical AUX encoder movement is recorded as Morph automation. |
 | **Erase automation** | Hold BAR, then press M2 on Morph AUX. This clears all parameter locks in that AUX pattern, retaining notes and other tracks. |
-| **A/B presets** | On AUX M3, turn K3 or K4 to select 01–16. Press K3 to load; press K4 to save/replace immediately. Both require BYPASS; playback may continue. Presets exclude S. |
-| **Project persistence** | Keep the `.xy` project and its `.oxy` companion together. The companion stores Morph snapshots, pad settings and the recording origin. |
+| **A/B presets** | On AUX M3, turn K4 to select 01–16. Press K3 to load or K4 to save over the selected slot. Both require BYPASS and allow playback to continue. Presets exclude S. |
+| **Project persistence** | Keep the `.xy` project and its `.oxy` companion together. The companion stores Morph snapshots, pad and HUD settings, and the recording origin. gui2d16 writes companion version 7 and can load versions 1–7. Keep a copy of the original companion if you plan to roll back. |
 
 Manual BYPASS stays bypassed when the LFO or recorded movement continues. Excluded tracks stay at their current sound, including when returning to S. See the [illustrated guide](docs/Morph-Quick-Reference.pdf) for source takeover, captures, SHIFT chords, preset compatibility and the full gesture reference.
 
@@ -90,9 +90,9 @@ This repository provides source and an exact-base SDK addition. **It does not in
 ### With an existing Manager
 
 1. Preserve the working installation and its build/backup records. Select the correct XY profile and scan its installed setup.
-2. **Already using the gui2d SDK edition?** Keep it. Successful gui2d1/gui2d2 installations use the same addition; do not import it again.
+2. **Already using the gui2d SDK edition?** Keep it. Existing gui2d installations use the same SDK addition.
 3. **Using the matching earlier GUI SDK?** Import [the SDK addition](integration/Morph_gui2d_SDK_Addition.zip). Its importer checks the exact base and creates a separate installer. Investigate any mismatch instead of forcing it.
-4. In the prepared Manager, import [the current Morph source ZIP](release/Morph_gui2d2_Source.zip) and select **Replace installed Morph**. Do not add a second Morph or replace unrelated machines.
+4. In the prepared Manager, import [the current Morph source ZIP](release/Morph_gui2d16_Source.zip) and select **Replace installed Morph**. Do not add a second Morph or replace unrelated machines.
 5. Follow the normal calculate/build/review/stage/readback workflow and the established manual **WRITE OS** procedure. File staging and readback do not themselves write the boot partition.
 
 **New computer, different OS or a different SDK edition?** Start with [Installation](docs/INSTALLATION.md). For guided troubleshooting, give your assistant [AI installation support](docs/AI_INSTALLATION_SUPPORT.md).
@@ -110,17 +110,11 @@ This table describes the **pinned SDK snapshot in this repository**, not a promi
 
 Each XY needs its **own profile and installed-setup scan**. Keep firmware, private kits, build jobs and device backups outside the Git checkout.
 
-## Status and limits
+## Release and validation
 
-The owner reported **no regression and features working** on gui2d1; gui2d2 corrects the dynamic-filter mapping and AUX sensitivity artwork. Detailed native CPU/memory measurements and a comprehensive gui2d2 device checklist are not included.
+gui2d16 brings the extended sensitivity ranges, three pad curves, and separate horizontal pad and vertical HUD indicators to AUX M3. It includes the routed encoder changes from gui2d14 and removes the temporary timing readouts.
 
-Repository assembly passes authenticated SDK preparation, the **18,350-check** original installer boundary suite and focused GUI, geometry, control-isolation and compositor checks. The full SDK suite has documented baseline-matching failures; these have not been reclassified as a pass.
-
-- Filter graphics are control-position visualizations, not calibrated DSP measurements. Dynamic C/D bars show parameter amounts, not live audio levels.
-- Minor envelope streaks at zero attack or maximum release were accepted by the owner and intentionally left unchanged.
-- Firmware compatibility depends on the exact SDK integration and installed setup, not only the version label.
-
-See [Validation](docs/VALIDATION.md) and [repository check results](REPOSITORY_CHECKS.txt) for the evidence and remaining limits.
+Host checks cover the GUI, pad response, preset selection, project migration, held K4 input and eight-track routing. Native compilation and device testing of gui2d16 are unrecorded in this package. [Validation](docs/VALIDATION.md) · [Repository check results](REPOSITORY_CHECKS.txt)
 
 ## Develop and contribute
 
@@ -147,7 +141,7 @@ For a useful bug report, include the source version, host OS/architecture, activ
 
 | Path | Contents |
 | --- | --- |
-| [`machine/morphcapture/`](machine/morphcapture/) | Current gui2d2 source; authoritative implementation. |
+| [`machine/morphcapture/`](machine/morphcapture/) | Current gui2d16 source; authoritative implementation. |
 | [`release/`](release/) | Ready-to-import source ZIP, including the illustrated guide. |
 | [`integration/`](integration/) | Exact-base SDK addition, unpacked changes and manifest. |
 | [`docs/`](docs/) | Guide, installation, AI support, architecture and validation. |

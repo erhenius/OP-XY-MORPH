@@ -1,0 +1,1 @@
+Packaging-only correction: all 24 C/C++ source/header files pass the SDK contributor boundary validator. Runtime display source, state layout and SVG match gui2d6 byte-for-byte. No performance or rendering change. Full native build remains to be completed in Manager.

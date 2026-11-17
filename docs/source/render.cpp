@@ -20,8 +20,8 @@ int main(){
  in.track=11;words[8]=7<<4;words[5]=0x55;words[3]=16;words[2]=0;
  words[4]=1;display(state,in,f);output("aux1_live",f);words[3]=0;display(state,in,f);output("aux1_bypass",f);
  words[4]=2;words[6]=0;display(state,in,f);output("aux2",f);words[6]=1;display(state,in,f);output("aux2_bank",f);
- words[4]=3;words[7]=1|(90<<8);display(state,in,f);output("aux3",f);
- words[3]=16;display(state,in,f);output("aux3_live",f);
+ words[4]=3;words[7]=1|(290<<8)|(79<<20);display(state,in,f);output("aux3",f);
+ words[7]=1|(0<<8)|(2<<17);words[3]=16;display(state,in,f);output("aux3_live",f);
  in.track=0;for(u32 page=0;page<3;++page){scene.module=page;scene.filter_type=9;scene.shifted=0;display(state,in,f);char name[12];std::sprintf(name,"hud%u",page+1);output(name,f);}
  scene.filter_type=17;display(state,in,f);output("hud3_hp",f);scene.filter_type=18;display(state,in,f);output("hud3_dynamic",f);
  scene.shifted=1;for(u32 page=1;page<3;++page){scene.module=page;display(state,in,f);char name[14];std::sprintf(name,"hud%u_shift",page+1);output(name,f);}

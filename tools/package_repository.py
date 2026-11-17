@@ -16,7 +16,8 @@ for p in sorted(ROOT.rglob('*')):
 manifest=ROOT/'SHA256SUMS.json'
 manifest.write_text(json.dumps({str(p.relative_to(ROOT)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in files},indent=2)+'\n')
 files.append(manifest)
-out=ROOT.parent/'OPXY-Morph-gui2d2-Repository.zip'
+edition = (ROOT / 'VERSION').read_text().strip().rsplit('-', 1)[-1]
+out = ROOT.parent / f'OPXY-Morph-{edition}-Repository.zip'
 with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as z:
  for p in files:z.write(p,Path(ROOT.name)/p.relative_to(ROOT))
 print(out, len(files),'files,',out.stat().st_size,'bytes')

@@ -33,6 +33,16 @@ int main(){
  }
  in.track=11;for(u32 page=1;page<=3;++page)for(u32 mode=0;mode<2;++mode)for(u32 slot=0;slot<16;++slot){words[4]=page;words[3]=mode<<4;words[8]=slot<<4;display(state,in,frame);require(d::valid(frame),"AUX page invalid");}
 
+ words[4]=3;
+ for(int level=0;level<80;++level){
+  words[7]=(level<<20)|(191<<8);display(state,in,frame);
+  const auto& y=frame.nodes[ui::hudVector];const auto& x=frame.nodes[ui::vector];
+  int pct=level*5-95;
+  require(!frame.texts[22].chars[0] && !frame.texts[30].chars[0],"Unexpected gain text");
+  if(!pct)require(y.x==640*1024,"Neutral vector should be hidden");
+  else require(y.x==x.x && y.y==x.y && y.sin==(pct>0?-1024:1024) && y.shade==(pct<0?1u:0u),"Gain vector origin, direction or color wrong");
+  require(d::valid(frame),"Invalid M3 gain frame");
+ }
  // Sequential retained-paint regressions: cell fills never become selected fills.
  words[4]=3;for(u32 slot=0;slot<16;++slot){words[8]=slot<<4;display(state,in,frame);
   for(u32 k=0;k<16;++k)require(frame.nodes[ui::slot0+k].paint==d::stroke,"Preset cell fill can persist");
@@ -41,7 +51,13 @@ int main(){
  for(u32 module=1;module<=2;++module){scene.module=module;scene.shifted=1;display(state,in,frame);
   for(u32 k=0;k<4;++k)require(frame.nodes[ui::row0+k].shade==4 && frame.nodes[ui::row0+k].paint==d::fill_and_stroke,"SHIFT row retained M1 paint");}
  i32 env[4]={0,0x40000000,0x40000000,0x40000000};init_frame(frame);envelope(frame,0,env,90,72,false);
- for(u32 k=0;k<10;++k)require(frame.paths[0].points[k].x==frame.paths[0].points[0].x,"Zero attack is not vertical");
+ // Boundary repair may reorder vertices. Check the actual vertical edges,
+ // not the former centreline ordering in the first ten slots.
+ i32 vertical_length=0;
+ for(u32 k=0;k<64;++k){const auto a=frame.paths[0].points[k],b=frame.paths[0].points[(k+1)%64];
+  if(a.x==b.x && a.x>=-44352 && a.x<=-43712)vertical_length+=a.y>b.y?a.y-b.y:b.y-a.y;
+ }
+ require(vertical_length>=60000,"Zero attack lost its vertical outline");
  display_reset(state);words[9]=0;in.track=11;blink(state,in);words[9]=1;in.elapsed=0;blink(state,in);require(icon_shade(state,0)==0,"First flash absent");
  in.elapsed=103;blink(state,in);require(icon_shade(state,0)==6,"First dark interval absent");blink(state,in);require(icon_shade(state,0)==0,"Second flash absent");blink(state,in);require(icon_shade(state,0)==6,"Flash did not end");
  require(norm(0)==0 && norm(0x7fffffff)==99 && norm(-1)==-1,"Display range conversion wrong");

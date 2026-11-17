@@ -50,6 +50,7 @@ struct ControlState {
  u32 base_ready;
  u32 origin_ready;
  u32 mode;                    // 0 BYPASS, 1 LIVE
+ i32 transaction_travel; // Target for the current send and both readback passes.
  i32 travel;                 // -64=A, 0=origin, +64=B
  u32 edit_side;               // 0=A 1=B
  u32 phase;
@@ -62,10 +63,6 @@ struct ControlState {
 // Gate 8: GUI-owned pointer into the unique controller state. No duplicate
 // 8-track arrays; pointers are invalidated on every reset or lost context.
 static const ControlState* hud_source=0;
-// CV-only diagnostic witness.  No extra scene cache and no music-write path.
-// Counts are bounded and reset on controller reset.  This does NOT claim
-// stock encoder delivery until actual device events move the counters.
-static const ControlState* aux_probe=0;
 static u32 aux_page=1u,route_bank=0u;
 static bool lfo_was_active=false;
 static bool preset_panel=false;
@@ -74,7 +71,6 @@ static u32 preset_slot=0u,preset_status=0u,preset_confirm_us=0u,preset_partial=0
 // On-demand only. Separate copies permit verified saves without destroying
 // the most recent valid generation if a write is interrupted.
 static opxy::u8 preset_data[2][morph_presets::bytes];
-static u32 aux_diag_ticks=0u,aux_diag_clicks=0u,aux_diag_turns=0u;
 
 struct HudLatch { u32 primed, track, last_tempo, last_instrument, enabled; };
 static HudLatch hud_latch={};
@@ -164,27 +160,6 @@ extern "C" void sdk_morph_hud_compositor_witness(u32 page,u32 track) {
 // The external HUD renderer reads an atomic-by-copy track snapshot. It can
 // never call this on the audio thread or manufacture authorization for input.
 extern "C" bool sdk_morph_hud_snapshot_read(u32 track,hud::Snapshot* out) {
- if(track==11u) {
-  if(!out || !aux_probe)return false;
-  hud::Snapshot diagnostic={};
-  diagnostic.abi=hud::kSnapshotABI;
-  diagnostic.track=11u;
-  diagnostic.captured_a=aux_probe->captured_mask[0];
-  diagnostic.captured_b=aux_probe->captured_mask[1];
-  diagnostic.start_ready=aux_probe->base_ready;
-  diagnostic.edit_side=aux_probe->edit_side;
-  diagnostic.mode=aux_probe->mode;
-  diagnostic.travel=aux_probe->travel;
-  diagnostic.phase=aux_probe->phase;
-  diagnostic.fault=aux_probe->fault;
-  diagnostic.current[0]=static_cast<i32>(aux_diag_ticks);
-  diagnostic.current[1]=static_cast<i32>(aux_diag_clicks);
-  diagnostic.current[2]=static_cast<i32>(aux_diag_turns);
-  diagnostic.current[3]=aux_probe->context_ready?1:0;
-  for(u32 i=0;i<3u;++i)diagnostic.current[4u+i]=static_cast<i32>(sdk_morph_gui_route_trace(i));
-  *out=diagnostic;
-  return true;
- }
  if(!out || track>=kTracks || !hud_source || !hud_source->context_ready ||
     !sdk_morph_view_context_ok())return false;
  const ControlState& s=*hud_source;
@@ -222,6 +197,9 @@ static midi::State midi_input={};
 static pad::Rate pad_input={};
 static bool pad_enabled=false;
 static i32 pad_sensitivity=0;
+// Each level adds 1/20 of the original travel per HUD encoder detent.
+const i32 hud_unity=19, hud_default=39, hud_max=79;
+static i32 hud_gain_level=hud_default, hud_remainder=0;
 static u32 pad_curve=1u;
 static i32 recorded_origin[8][34]={};
 static bool recorded_reference=false, transport_playing=false;
@@ -274,6 +252,7 @@ void hud_physical_observe(bool visible,u32 track) {
  const bool shift=sdk_morph_gui_shift_held()!=0u;
  u32 raw=0u;
  for(u32 i=0;i<4u;++i)if(sdk_morph_gui_encoder_down(i))raw|=(1u<<i);
+ if(!visible || shift || ((raw & ~hud_physical.raw_previous) & 8u))hud_remainder=0;
  const u32 caps=raw&3u,ends=(raw>>2u)&3u;
  const bool track_held=sdk_morph_track_held(track)!=0u;
  if(!visible) {
@@ -389,14 +368,14 @@ opxy::u32 hud_readonly_screen_route(opxy::u32 selected_page) {
  return 219u;
 }
 void control_reset(ControlState& s) {
+ s.transaction_travel=0;
  reset_follow();
  preset_panel=false;preset_status=preset_confirm_us=preset_partial=0u;ui_press_serial=0u;
  midi_input.reset();sdk_morph_midi_clear();
+ hud_gain_level=hud_default;hud_remainder=0;
  aux_page=1u;route_bank=0u;lfo_was_active=false;pad_enabled=false;pad_sensitivity=0;pad_curve=1u;pad_input.reset();sdk_morph_pad_request(false);s.active_tracks=255u;
  scramble_pending=0u;startup_captured=false;restored_pending=false;recorded_reference=false;transport_playing=false;movement_lane.reset();
  sdk_morph_gui_turns_reset();
- aux_probe=0;
- aux_diag_ticks=aux_diag_clicks=aux_diag_turns=0u;
 
  hud_source=0; // no stale display state across machine/project changes
  sdk_morph_hud_substitute=0; // no stale screen routing across resets
@@ -484,9 +463,9 @@ u32 control_save(const ControlState& s,opxy::u8* data,u32 capacity) {
     !sdk_morph_view_context_ok())return 0;
  opxy::morphport::ShiftSchema schema[8]={};u32 patterns[10]={};
  if(!sdk_morph_persist_identity(schema,patterns))return 0;
- put32(data,0x3233524du);put32(data+4,5u);put32(data+8,kSavedBytes);
+ put32(data,0x3233524du);put32(data+4,7u);put32(data+8,kSavedBytes);
  put32(data+12,s.captured_mask[0]);put32(data+16,s.captured_mask[1]);
- put32(data+20,s.base_ready);put32(data+24,s.origin_ready);put32(data+28,(recorded_reference?1u:0u)|(s.active_tracks<<8u)|(pad_enabled?0x10000u:0u)|(static_cast<u32>(pad_sensitivity+90)<<17u)|(pad_curve<<25u));
+ put32(data+20,s.base_ready);put32(data+24,s.origin_ready);put32(data+28,(recorded_reference?1u:0u)|(static_cast<u32>(hud_gain_level)<<1u)|(s.active_tracks<<8u)|(pad_enabled?0x10000u:0u)|(static_cast<u32>(pad_sensitivity+90)<<17u)|(pad_curve<<26u));
  u32 at=32u;
  for(u32 i=0;i<10u;++i){put32(data+at,patterns[i]);at+=4u;}
  for(u32 t=0;t<8u;++t){
@@ -503,13 +482,19 @@ u32 control_save(const ControlState& s,opxy::u8* data,u32 capacity) {
 }
 void control_load(ControlState& s,const opxy::u8* data,u32 bytes) {
  control_reset(s);
- if(!data || bytes!=kSavedBytes || get32(data)!=0x3233524du || (get32(data+4)<1u || get32(data+4)>5u) ||
+ if(!data || bytes!=kSavedBytes || get32(data)!=0x3233524du || (get32(data+4)<1u || get32(data+4)>7u) ||
     get32(data+8)!=bytes || get32(data+bytes-4u)!=saved_checksum(data,bytes-4u) ||
     get32(data+12)>255u || get32(data+16)>255u || get32(data+20)!=1u ||
     get32(data+24)>1u ||
-    (get32(data+28)&(get32(data+4)==1u?~1u:get32(data+4)==2u?~0xff01u:get32(data+4)==3u?~0x1ff01u:get32(data+4)==4u?~0x1ffff01u:~0x7ffff01u)))return;
+    (get32(data+28)&(get32(data+4)==1u?~1u:get32(data+4)==2u?~0xff01u:get32(data+4)==3u?~0x1ff01u:get32(data+4)==4u?~0x1ffff01u:get32(data+4)==5u?~0x7ffff01u:get32(data+4)==6u?~0x7ffff7fu:~0xfffffffu)))return;
  if(get32(data+4)==4u && ((get32(data+28)>>17u)&255u)>180u)return;
- if(get32(data+4)==5u && (((get32(data+28)>>17u)&255u)>191u || ((get32(data+28)>>25u)&3u)>2u))return;
+ if(get32(data+4)==6u && ((get32(data+28)>>1u)&63u)>59u)return;
+ const u32 version=get32(data+4),flags=get32(data+28);
+ const u32 stored_pad=(flags>>17u)&(version==7u?511u:255u);
+ const u32 stored_curve=(flags>>(version==7u?26u:25u))&3u;
+ const u32 stored_hud=(flags>>1u)&(version==7u?127u:63u);
+ if(version>=5u && (stored_pad>(version==7u?291u:191u) || stored_curve>2u))return;
+ if(version==7u && stored_hud>static_cast<u32>(hud_max))return;
  // Validate complete payload before publishing any snapshot value.
  const u32 values=240u;
  for(u32 at=values;at<bytes-4u;at+=4u)if(get32(data+at)>0x7fffffffu)return;
@@ -540,8 +525,10 @@ void control_load(ControlState& s,const opxy::u8* data,u32 bytes) {
  s.base_ready=1u;s.origin_ready=get32(data+24);recorded_reference=(get32(data+28)&1u)!=0u;
  s.active_tracks=get32(data+4)==1u?255u:(get32(data+28)>>8u)&255u;restored_pending=true;
  pad_enabled=get32(data+4)>=3u && (get32(data+28)&0x10000u);
- pad_sensitivity=get32(data+4)>=4u?static_cast<i32>((get32(data+28)>>17u)&255u)-90:0;
- pad_curve=get32(data+4)==5u?(get32(data+28)>>25u)&3u:1u;
+ pad_sensitivity=version>=4u?static_cast<i32>(stored_pad)-90:0;
+ if(version<=6u && pad_sensitivity==101)pad_sensitivity=201; // Previous Instant position.
+ hud_gain_level=version>=6u?static_cast<i32>(stored_hud):hud_unity;
+ pad_curve=version>=5u?stored_curve:1u;
 }
 inline bool capture(ControlState& s,u32 side) {
  if(side>1u || !read_all(candidate))return false;
@@ -609,15 +596,26 @@ inline i32 clamped_travel(i32 before,i32 steps) {
 }
 inline i32 desired(const ControlState& s,u32 t,u32 i) {
  if(s.target_bypass)return s.base[t][i];
- if(!s.travel)return s.origin[t][i];
- const u32 side=s.travel>0?1u:0u;
- const u32 steps=static_cast<u32>(s.travel>0?s.travel:-s.travel);
+ if(!s.transaction_travel)return s.origin[t][i];
+ const u32 side=s.transaction_travel>0?1u:0u;
+ const u32 steps=static_cast<u32>(s.transaction_travel>0?s.transaction_travel:-s.transaction_travel);
  const u32 fraction=steps>=kFull?0x7fffffffu:(steps<<25u);
  return opxy::morph::interpolate(s.origin[t][i],s.scene[side][t][i],fraction);
 }
 inline void schedule(ControlState& s,bool bypass) {
  if(bypass){pad_input.reset(s.travel);movement_lane.bypass();midi_input.reset();sdk_morph_midi_clear();}
+ s.transaction_travel=s.travel;
  s.target_bypass=bypass?1u:0u;s.phase=sending;s.cursor=0u;s.fault=0u;
+}
+// At high routing counts another detent can arrive before the previous
+// target reaches the last track. Keep just the latest requested position.
+inline void schedule_encoder(ControlState& s) {
+ unsigned mask=s.active_tracks;
+ if(mask)mask &= mask-1u;
+ if(mask)mask &= mask-1u;
+ const bool many_tracks=mask!=0u;
+ if(many_tracks && s.phase!=idle && !s.target_bypass)return;
+ schedule(s,false);
 }
 inline bool activate(ControlState& s) {
  // Freeze the exact current stored sound on BYPASS -> LIVE, regardless of
@@ -674,6 +672,7 @@ inline void verify_tick(ControlState& s) {
  if(s.cursor==kTracks*kParams) {
   s.cursor=0u;
   if(s.phase==verify_first)s.phase=verify_second;
+  else if(!s.target_bypass && s.transaction_travel!=s.travel)schedule(s,false);
   else {s.phase=idle;if(s.target_bypass){s.mode=0u;s.travel=0;s.origin_ready=0u;}}
  }
 }
@@ -727,6 +726,17 @@ inline i32 scene_adjust(i32 before,i32 detents) {
 inline bool movement_allowed(const ControlState& s) {
  return s.phase!=failed && (s.phase==idle || !s.target_bypass);
 }
+// The raw sampler already bounds each offer to four detents. Keep fractional
+// travel across successive offers so the slowest gain still moves both ways.
+inline i32 hud_travel(i32 before,i32 detents) {
+ const i32 total=hud_remainder+detents*(hud_gain_level+1);
+ const i32 whole=total/20;
+ hud_remainder=total-whole*20;
+ const i32 after=before+whole;
+ if(after>=64 && total>0){hud_remainder=0;return 64;}
+ if(after<=-64 && total<0){hud_remainder=0;return -64;}
+ return after;
+}
 inline void hud_apply_turns(ControlState& s,const HudTurnInput& input,bool muted) {
  if(muted || s.phase==failed || !sdk_morph_hud_frame_authorized(input.track) ||
     !sdk_morph_session_context_ok() || (sdk_morph_gui_shift_held()?1u:0u)!=input.shifted ||
@@ -736,8 +746,8 @@ inline void hud_apply_turns(ControlState& s,const HudTurnInput& input,bool muted
   if(!movement_allowed(s))return;
   if(activate(s)) {
    const i32 before=s.travel;
-   s.travel=clamped_travel(s.travel,input.steps[3]);
-   if(s.travel!=before)schedule(s,false);
+   s.travel=hud_travel(s.travel,input.steps[3]);
+   if(s.travel!=before)schedule_encoder(s);
   } else s.fault=12u;
   return;
  }
@@ -808,15 +818,6 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
   const u32 shift=k*8u; const u32 next=((ui_press_serial>>shift)+1u)&255u;
   ui_press_serial=(ui_press_serial&~(255u<<shift))|(next<<shift);
  }
- // Counts describe events CONSUMED by the actual controller.  They are not
- // fabricated from parameter changes or display frames.
- if(aux_diag_ticks<9999u)++aux_diag_ticks;
- for(u32 k=0;k<4u;++k) {
-  if((clicks>>k)&1u)if(aux_diag_clicks<9999u)++aux_diag_clicks;
-  const i32 steps=turns[k];
-  if(steps && aux_diag_turns<9999u)++aux_diag_turns;
- }
-
  const hud::Event pending_hud=take_hud_event();
  const HudTurnInput turns_hud=take_hud_turn_input();
  // Context is retained across GUI ticks. Never transplant A/B/S into a
@@ -876,10 +877,16 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
   if(before!=pad_enabled)pad_input.reset(s.travel);
   if(clicks&2u)pad_curve=(pad_curve+1u)%3u;
   pad_sensitivity+=turns[1]>0?1:turns[1]<0?-1:0;
-  if(pad_sensitivity>101)pad_sensitivity=101;
+  if(pad_sensitivity>201)pad_sensitivity=201;
   if(pad_sensitivity< -90)pad_sensitivity=-90;
   // AUX turns are directional parameter deltas, not preset-slot counts.
-  const i32 scroll=(turns[2]>0?1:turns[2]<0?-1:0)+(turns[3]>0?1:turns[3]<0?-1:0);
+  if(turns[2]){
+   hud_gain_level+=turns[2]>0?1:-1;
+   if(hud_gain_level<0)hud_gain_level=0;
+   if(hud_gain_level>hud_max)hud_gain_level=hud_max;
+   hud_remainder=0;
+  }
+  const i32 scroll=turns[3]>0?1:turns[3]<0?-1:0;
   if(scroll){
    const i32 next=static_cast<i32>(preset_slot)+scroll;
    preset_slot=next<0?0u:next>15?15u:static_cast<u32>(next);
@@ -939,7 +946,7 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
       for(u32 t=0;t<8u;++t)for(u32 i=0;i<kParams;++i)recorded_origin[t][i]=s.origin[t][i];
       recorded_reference=true;
      }
-     schedule(s,false);
+     schedule_encoder(s);
     }
    } else s.fault=10u;
   }
@@ -991,7 +998,7 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  }
  out.display[9]=static_cast<i32>(ui_press_serial);
  out.display[8]=static_cast<i32>((preset_panel?1u:0u)|(preset_slot<<4u)|(preset_status<<8u)|(preset_partial<<16u));
- out.display[7]=(pad_enabled?1:0)|(sdk_morph_pad_waiting()?2:0)|((pad_sensitivity+90)<<8u)|(pad_curve<<16u);
+ out.display[7]=(pad_enabled?1:0)|(sdk_morph_pad_waiting()?2:0)|((pad_sensitivity+90)<<8u)|(pad_curve<<17u)|(static_cast<u32>(hud_gain_level)<<20u);
  out.display[4]=static_cast<i32>(aux_page);
  out.display[5]=static_cast<i32>(s.active_tracks);
  out.display[6]=static_cast<i32>(route_bank);
@@ -1003,7 +1010,6 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  // Snapshot is available only in a live unique-Morph session. Read-only
  // publication cannot unlock the separate compositor authorization path.
  sdk_morph_scramble_done=hud_scramble_done;
- aux_probe=&s;
  hud_source=(s.context_ready && sdk_morph_session_context_ok())?&s:0;
  sdk_morph_hud_substitute=hud_source?hud_readonly_screen_route:0;
  sdk_morph_hud_frame_witness=hud_source?sdk_morph_hud_compositor_witness:0;

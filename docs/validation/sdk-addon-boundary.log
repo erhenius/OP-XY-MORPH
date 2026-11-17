@@ -1,7 +1,0 @@
-BYPASS stored-field reads over 1000 ticks / one second: 1360
-Snapshot track-block queries: 37
-Gate36 new POD state: MIDI controller=8, SDK mailbox=12, epoch=4 bytes
-Gate37 POD additions: rate=16 mode=1 input=8 HUD delay=12 bytes; payload=5684
-Gate33 additional state: 4; page/bank/last-LFO statics: 9; payload 5684 bytes
-Gate32 identified new static bytes (before linker padding): 1331; persistence bytes: 5684
-PASS: 18350 boundary, scene, compositor, snapshot and isolation checks; state=4408 bytes

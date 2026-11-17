@@ -2,7 +2,7 @@
 
 ## Purpose and first facts
 
-Help the owner reach a verified installation on their actual system. Read root README, INSTALLATION and VALIDATION before acting. Root documents describe current gui2d2; the vendor installer includes older manuals and an older bundled Morph because it is the authenticated baseline. Do not repeat that older preset-panel workflow.
+Help the owner reach a verified installation on their actual system. Read root README, INSTALLATION and VALIDATION before acting. Root documents describe current gui2d16; the vendor installer includes older manuals and an older bundled Morph because it is the authenticated baseline. Do not repeat that older preset-panel workflow.
 
 Start from available logs and files. Ask only for facts not already supplied:
 
@@ -15,9 +15,9 @@ Do useful read-only checks first. Do not ask the owner to reinstall everything o
 
 ## Choose the workflow
 
-### Existing successful gui2d / gui2d1 / gui2d2 SDK edition
+### Existing gui2d SDK edition
 
-Keep it. Import current Morph source and replace installed Morph. Reimporting the same exact-base SDK addition into its already-patched edition is wrong. GUI2d1 and gui2d2 are source-only successors to gui2d.
+Keep it. Import current Morph source and replace installed Morph. gui2d16 uses the existing gui2d SDK addition.
 
 ### Matching pre-gui2d GUI SDK edition
 
@@ -39,7 +39,7 @@ Use the pinned platform matrix in INSTALLATION. Windows executables, Unix tools 
 | Compiler not found or wrong architecture | Active edition paths, host profile, `sdk.py doctor --toolchain` | Substitute a random `bfin-elf-g++` or bypass hashes |
 | SDK addition rejected | Exact base SDK/profile identity and whether addition is already installed | Edit `before` hashes or import into an unrelated edition |
 | `display_binding.cpp` compile exits 1 | First compiler diagnostic above the wrapper; source version | Assume the last printed unrelated object is the failing source |
-| `-Werror=misleading-indentation` in gui2d clipping | Upgrade to gui2d1 or gui2d2; adjacent conditions were fixed | Disable `-Werror` globally |
+| `-Werror=misleading-indentation` in gui2d clipping | Install the current gui2d16 source | Disable `-Werror` globally |
 | Incomplete native-kit export | Preserve its log and start a fresh output job | Keep retrying into the incomplete directory or overwrite a successful job |
 | Native allocation/profile/reconstruction refusal | Actual memory report, machine selection and exact authenticated inputs | Change protected ranges or skip required verification |
 | Device absent / MTP busy | Correct te-boot MTP mode, host dependency, competing clients | Treat a Finder drive letter or ordinary mounted volume as MTP |
@@ -52,11 +52,11 @@ Avoid deleting a user's previous successful build, projects, companions or devic
 ## Current controls that are easy to confuse
 
 - AUX M3 is the pad/preset page. Instrument M3 is the filter HUD. Ask which one only when the report is ambiguous.
-- AUX K1 press/turn toggles pad mode. K2 turn changes speed; K2 press cycles SQRT/LINEAR/EXP. K3 or K4 turn selects 01-16; K3 press loads; K4 press saves immediately. Both require BYPASS; playback may continue. A/B presets exclude S.
+- AUX K1 press/turn toggles pad mode. Turn K2 for pad sensitivity or press K2 to cycle Light Touch, Linear and EXP. Turn K3 for held-K4 HUD sensitivity. Turn K4 to select 01–16. Press K3 to load or K4 to save immediately. Both require BYPASS and allow playback to continue. A/B presets exclude S.
 - Dynamic instrument filter: K1 low cut (HP), K2 compression (C), K3 distortion (D), K4 high cut (LP). C/D bars show parameter amounts, not measured gain reduction/audio levels.
 - Filled circle is A, outline circle is B. The little moving square is sweep position. The square SET S icon is a command symbol; S is a separate return snapshot. Centre is not necessarily S.
 - Hold selected instrument track for 150 ms to show HUD. Track before SHIFT gives Morph gestures; SHIFT before track preserves stock menu access. Menu timeout hides paint after 1.5 seconds without changing actions.
-- The owner accepted minor envelope streaks at attack 0 / maximum release; do not silently expand scope to fix them.
+- The accepted envelope visuals include minor streaks in some positions.
 
 ## Evidence and reporting
 

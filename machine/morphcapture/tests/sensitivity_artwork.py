@@ -1,18 +1,36 @@
-from pathlib import Path
-import xml.etree.ElementTree as E
+"""Check the retained display paths against the shipped response tables."""
+import bisect
 import re
-root=E.fromstring((Path(__file__).resolve().parents[1]/'panel.svg.fragment').read_text())
-checks=0
-for k in (0,2):
- node=next(e for e in root.iter() if e.get('id')=='morphcapture_node_'+str(129+k))
- data=node.get('d');assert re.sub(r'[-0-9. ,]', '',data)=='MC'
- p=list(map(float,re.findall(r'-?[0-9]+(?:\.[0-9]+)?',data)))
- for i in range(101):
-  t=i/100;u=1-t
-  x=u**3*p[0]+3*u*u*t*p[2]+3*u*t*t*p[4]+t**3*p[6]
-  y=u**3*p[1]+3*u*u*t*p[3]+3*u*t*t*p[5]+t**3*p[7]
-  expected=(52*t*t,-52*t) if k==0 else (52*t,-52*t*t)
-  assert abs(x-expected[0])<.001 and abs(y-expected[1])<.001
-  assert 0<=x<=52 and -52<=y<=0
-  checks+=1
-print('PASS:',checks,'sensitivity curve samples; native cubic paths')
+from pathlib import Path
+from xml.etree import ElementTree as ET
+
+machine = Path(__file__).resolve().parents[1]
+panel = ET.parse(machine / 'panel.svg.fragment')
+header = (machine / 'morph_pad.hpp').read_text()
+
+def table(name):
+    body = re.search(r'\b'+name+r'\[\d+\]=\{([^}]+)\}', header)[1]
+    return list(map(int, body.split(',')))
+
+light_x = [*range(64), *range(64,512,64), *range(512,8193,512)]
+light_y = table('onset') + table('low')[:-1] + table('high')
+exp_y = table('table')
+for node in [129,131]:
+    path = panel.find(f".//*[@id='morphcapture_node_{node}']").get('d')
+    xy = [tuple(map(float, pair.split())) for pair in path[1:].split('L')]
+    xs = [p[0] for p in xy]
+    assert xy[0] == (0,0) and xy[-1] == (52,-52)
+    for raw in range(8192):
+        if node == 129:
+            i = bisect.bisect_right(light_x, raw)-1
+            value = light_y[i]+(light_y[i+1]-light_y[i])*(raw-light_x[i])//(light_x[i+1]-light_x[i])
+        else:
+            i, rem = divmod(raw*16,8191)
+            value = exp_y[i]+(exp_y[min(i+1,16)]-exp_y[i])*rem//8191
+        if raw == 8191:
+            value = 8191
+        x = raw*52/8191
+        i = min(len(xs)-2,bisect.bisect_right(xs,x)-1)
+        y = xy[i][1]+(xy[i+1][1]-xy[i][1])*(x-xs[i])/(xs[i+1]-xs[i])
+        assert abs(y+value*52/8191)<0.11
+print('PASS: both AUX curve paths match all 8192 response samples within 0.11 pixel')
