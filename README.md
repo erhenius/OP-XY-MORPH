@@ -33,9 +33,9 @@ AUX is Morph's home for capture, routing, pad settings and presets. Hold a selec
 
 ## Eight views of Morph
 
-![Eight Morph screens: AUX capture, routing and pad/presets; instrument, envelope and filter HUDs; dynamic filter and SHIFT sends](docs/images/morph-eight-screens.png)
+![Eight Morph screens: AUX capture, routing and pad/presets; instrument, envelope and filter HUDs; dynamic filter and SHIFT sends](docs/images/morph-eight-screens.gif)
 
-These are examples from the actual gui2d2 display renderer, with illustrative values and a substitute preview font. They are not photographs of the device. General screen examples show the sweep at its midpoint.
+This 12-second loop uses the actual gui2d2 display renderer with scripted example inputs and a substitute preview font. Each tile demonstrates its own controls; it is not a recording of eight simultaneous device screens. The loop has no audio. [View the static collage](docs/images/morph-eight-screens.png).
 
 ### AUX: capture, route and perform
 
