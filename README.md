@@ -1,86 +1,38 @@
 # Morph for OP-XY
 
-**Morph v1.3.0-dev** — A/B preset development build, based on Gate39 plus the S-tracking performance fix. Native build and hardware acceptance are pending.
+Morph captures A/B scenes across eight instrument tracks and moves supported sound parameters towards either scene. AUX pages handle capture, routing, the pressure pad and sixteen A/B presets; instrument HUDs expose scene parameters beside the sound controls.
 
-Capture two sounds across your instrument tracks, move toward either one, and return to a stored starting point. Choose which tracks participate, use the instrument HUD for performance and snapshot editing, or drive the movement with recorded automation and the stock LFO.
+Current source: **1.3.1-dev-gui2d2**, targeting the supplied custom SDK integration for **stock OS 1.2.1**. This is a source repository, not a flashable OS image or an upstream catalog submission.
 
-![Morph AUX M1](docs/screens/aux-m1.png)
+- [Illustrated quick reference](docs/Morph-Quick-Reference.pdf): logo/introduction, AUX, HUD, sweep positions, recording, MIDI, presets and Manager.
+- [Installation](docs/INSTALLATION.md): existing Manager and other hosts.
+- [AI installation support](docs/AI_INSTALLATION_SUPPORT.md): evidence-driven help across systems, editions and device setups.
+- [Status and validation](docs/VALIDATION.md): what passed, what the owner reported, and remaining limits.
+- [Development](docs/DEVELOPMENT.md): source layout, host checks and documentation regeneration.
 
-## What it does
+## Use it with the existing Manager
 
-- A/B snapshots across eight instrument tracks, plus an independent S return point. S follows stored settings in BYPASS through bounded background reads and synchronizes when entering LIVE. Automatic tracking stops in LIVE; explicit SET S remains available.
-- AUX M2 routing: enable or exclude tracks while keeping capture available for all eight.
-- Instrument HUD with track capture, snapshot editing, jumps, sweep and latch.
-- Metadata-driven capture/morphing of supported synth SHIFT parameters, including continuous and stepped controls.
-- One recordable AUX movement lane with stock erasure and saved snapshot/reference data.
-- Stock M4 LFO routed to Morph movement, respecting manual LIVE/BYPASS.
+1. Keep a working installation and its build/backup records. Select the correct XY profile and scan its installed setup.
+2. If your Manager already uses the gui2d SDK addition (including successful gui2d1/gui2d2 installs), keep that edition. **Do not import the same addition again.**
+3. Otherwise import `integration/Morph_gui2d_SDK_Addition.zip` into the matching pre-gui2d active GUI SDK edition. The importer verifies the exact base and creates a separate installer. A mismatch must be investigated, not forced.
+4. Import `release/Morph_gui2d2_Source.zip` as Morph source in the prepared Manager. Select **Replace installed Morph** rather than adding a second copy. The source is also available in `machine/morphcapture/`.
+5. Use the normal calculate/build/review/stage/readback workflow and the established manual WRITE OS procedure. A host test or successful file transfer is not proof that the boot partition was written.
 
-![Morph AUX M2](docs/screens/aux-m2-tracks-1-4.png)
+Read the installation document before setting up a new computer. The repository does not contain the signed macOS application/runtime.
 
-## Pressure-pad controls
+## Repository map
 
-![Morph AUX M3](docs/screens/aux-m3.png)
+| Path | Purpose |
+| --- | --- |
+| `machine/morphcapture/` | Current gui2d2 machine source; authoritative implementation |
+| `integration/` | Exact-base SDK addition, unpacked three-file changes and manifest |
+| `vendor/installer-base/` | Authenticated historical active installer and SDK source, preserved byte-for-byte |
+| `docs/` | Current guide, installation, AI support and validation |
+| `docs/source/` | Editable PDF generator, assets and renderer fixture |
+| `tests/` | Focused geometry, timer and controller/compositor checks |
+| `tools/` | SDK preparation, checks and source-ZIP packaging |
+| `release/` | Ready-to-import source ZIP; generated from current machine and guide |
 
-M3 K1 selects PITCH/MORPH. K2 adjusts speed (-90% to +100%, then INSTANT). K3 selects SQRT, LINEAR or EXP. Enable LIVE on M1; release the pad to hold position.
+The vendor installer deliberately retains its old bundled machine, guides, historical SDK decoders and integrity manifest. Those are baseline evidence and harness dependencies. **Use the root documentation and current machine source, not vendor quick-reference instructions or its bundled Morph.**
 
-## A/B presets
-
-AUX M3 K4 opens 16 persistent A/B preset slots. K1 selects; K2 loads; K3 saves with a second press to confirm; K4 returns. Stop transport and use BYPASS. Incompatible tracks load shared M2/M3 values while retaining M1 and engine-specific SHIFT. S is excluded. See [A/B preset controls and compatibility](docs/AB-PRESETS.md).
-
-## Start here
-
-Read the [illustrated quick reference](docs/Morph-Quick-Reference.pdf) for screens and button combinations.
-
-The repository contains source and a macOS Python/Tk builder. It does **not** contain OP-XY firmware, personal projects, precompiled machine collections or a universal flashable image. Your resulting firmware depends on the existing collection and its matching source/layout provenance.
-
-1. Follow [Building and installation](docs/BUILDING.md), including prerequisites and your own matching private kit.
-2. Open `Open_Morph_Builder.command` (or `builder/Open_XY_Machine_Manager.command`), or run `python3.12 builder/app.py`.
-3. Scan your OP-XY in **MTP file transfer (Mac)** mode. Choose your matching kit; earlier local build jobs can be recognized by the scanned OS hash.
-4. Choose **Install bundled Morph**, or explicitly replace an installed Morph with this release. Calculate footprint, then build and review.
-5. Stage only the verified candidate. The SDK backs up and reads back staged files; run **WRITE OS** on the XY and reboot to activate them.
-
-The final build must reconstruct the original setup and fit the protected **4 MiB module reservation**. Unknown provenance, incompatible kits and over-capacity builds are refused. This region is not total storage or CPU usage. Scanning, calculation and building remain read-only toward the device; staging is separate and never writes the boot partition itself.
-
-## MIDI movement
-
-Use **MIDI channel 12, CC 15**, with Morph manually set LIVE.
-
-| CC value | Movement |
-|---|---|
-| 0 | A endpoint |
-| 63 or 64 | Current movement origin |
-| 127 | B endpoint |
-
-Origin is the existing movement reference; it is not necessarily S. MIDI does not reactivate BYPASS and is not recorded into the AUX automation lane. Physical K4 recording remains available. See [MIDI behaviour and takeover](docs/MIDI.md).
-
-## Release status
-
-Pinned to Gate39. The owner confirms no regressions and correct feature operation on hardware.
-
-- AUX M3 K1: stock PITCH or MORPH pad mode.
-- K2: speed -90% through +100%, then INSTANT; bounded intermediate steps.
-- K3: SQRT / LINEAR / EXP pressure response.
-- Release holds position; INSTANT requests full A/B from a directional push.
-- Mode changes wait for release. Settings save with snapshots in the project companion.
-- Held instrument HUD delay is 150 ms; exact-endpoint reversal fixed.
-- MIDI channel 12 CC15, automation, routing, locks and existing controls retained.
-
-Older snapshot formats load with compatible defaults. This release saves v5 banks; older releases reject them. Preserve original project/companion copies for rollback. v1.1.0 remains available unchanged.
-
-The release contains source, macOS builder and an updated illustrated quick reference. Supply your own firmware and compatible private kit/provenance. No OS image, private kit or user projects included. Every native build must independently verify reconstruction and the protected 4 MiB allocation before staging. WRITE OS stays manual.
-
-S-tracking fix: 18,248 integration assertions, including per-tick and per-second polling limits, plus M1 and route parity pass. The saved format is unchanged. The earlier Gate39 baseline also passed 24,635 pad checks. Hardware acceptance and CPU/GUI timing of this fix remain pending. The inherited full SDK suite remains non-green (18 failures, 15 errors); logs included. Hardware acceptance is the owner's report, not independently measured here. CPU profiling remains unmeasured; upstream catalog approval is not claimed. Fresh acceptance of this exact public archive remains pending.
-
-## Read more
-
-- [Quick reference](docs/Morph-Quick-Reference.pdf) and [editable manual source](docs/Morph-Reference-Source.zip)
-- [Building](docs/BUILDING.md), [known issues](docs/KNOWN_ISSUES.md), [validation](docs/VALIDATION.md)
-- [Release notes](CHANGELOG.md), [version pin](release.json), [maintainer publishing steps](PUBLISHING.md)
-
-## Source and license
-
-`morphcapture/` is the machine source. `builder/` contains the current source builder, an identical machine copy and the patched SDK 1.15 fork based on [Open-XY](https://github.com/etcetc000/open-xy) commit `6642b3c6165043d29d4c9c9429294a42b71f924f`. Morph uses private SDK access hooks; importing it into an arbitrary unmodified upstream SDK is not supported.
-
-The repository retains its **GPL-3.0** license. Vendored Open-XY SDK and legacy SDK components retain their **MIT** notices; see [third-party notices](NOTICE.md). Independent project; not affiliated with or endorsed by teenage engineering.
-
-Playback recall correction: A/B recall is allowed during playback in BYPASS. Only saving requires stopped transport. File reads run on the GUI thread; storage latency on hardware remains unmeasured.
+Firmware, stock SVG source files, private kits, native build jobs, compiler executables and device data are excluded. Original licenses/notices remain with the vendored sources; see [provenance](docs/PROVENANCE.md).

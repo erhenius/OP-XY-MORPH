@@ -1,17 +1,33 @@
-# Morph v1.2.0 — pressure-pad movement
+# Validation and accepted state
 
-Pinned to Gate39. The owner confirms no regressions and correct feature operation on hardware.
+## Version history
 
-- AUX M3 K1: stock PITCH or MORPH pad mode.
-- K2: speed -90% through +100%, then INSTANT; bounded intermediate steps.
-- K3: SQRT / LINEAR / EXP pressure response.
-- Release holds position; INSTANT requests full A/B from a directional push.
-- Mode changes wait for release. Settings save with snapshots in the project companion.
-- Held instrument HUD delay is 150 ms; exact-endpoint reversal fixed.
-- MIDI channel 12 CC15, automation, routing, locks and existing controls retained.
+| Revision | Change / evidence |
+| --- | --- |
+| gui2c | Owner accepted AUX M1/M2, instrument M1 and other unnamed behaviour; reported GUI issues |
+| gui2d | Square plot, preset stepping/selection, 1.5s menu paint timeout, SHIFT colors, stock-derived envelope/LP/HP plots, stored filter-model source and moving resonance value |
+| gui2d1 | Fixed adjacent clipping conditions rejected by `-Werror=misleading-indentation`; owner reported no regression and features working |
+| gui2d2 | Dynamic K1/K4 independent cutoff edges; C/D bars follow K2/K3. AUX sqrt/exp malformed mixed absolute/relative steps replaced with native cubic paths |
 
-Older snapshot formats load with compatible defaults. This release saves v5 banks; older releases reject them. Preserve original project/companion copies for rollback. v1.1.0 remains available unchanged.
+After gui2d2 delivery the owner replied positively and requested documentation updates. There is no detailed native build log, memory report, CPU profile or comprehensive gui2d2 hardware checklist in this package. Do not invent those results. Minor envelope streaks at attack zero or maximum release are explicitly accepted and not a pending repair.
 
-The release contains source, macOS builder and an updated illustrated quick reference. Supply your own firmware and compatible private kit/provenance. No OS image, private kit or user projects included. Every native build must independently verify reconstruction and the protected 4 MiB allocation before staging. WRITE OS stays manual.
+## Host checks
 
-Host verification: 24,635 pad checks, 17,346 integration assertions, M1 and route parity pass. The inherited full SDK suite remains non-green (18 failures, 15 errors); logs included. Hardware acceptance is the owner's report, not independently measured here. CPU profiling remains unmeasured; upstream catalog approval is not claimed. Fresh acceptance of this exact public archive remains pending.
+- 10,647 GUI invariants, UBSan; frame 8,568 host bytes, display state 24 bytes.
+- 137,088 stock-derived geometry contracts, UBSan.
+- 256 dynamic control-isolation checks.
+- 202 sensitivity artwork samples checked against analytic square curves.
+- 527,606 menu timeout/traversal assertions across 2,040 combinations.
+- 76 focused controller/compositor checks, including direction-only slot movement and stored filter model.
+- 18,350 original installer boundary checks with the original bundled machine against the proposed SDK.
+- Strict host display compilation with C++11, freestanding restrictions, `-Wall -Werror`.
+
+`tools/check.py` reruns the focused machine checks. `tools/prepare_sdk.py` runs the original authenticated preparation and bundled-machine boundary suite. Packaging verification is recorded in `REPOSITORY_CHECKS.txt`.
+
+## Known test limitations
+
+The prior full SDK check ran 549 tests: 18 failures, 15 errors and 39 skips. Failing/error test names matched the unchanged active SDK, including missing Git metadata and temporary private-path policy classification. The logs are in `docs/validation/`. This is not a passing full SDK suite.
+
+The historical full boundary harness with gui2c or the current machine fails an obsolete `M3 K4 did not open presets` expectation. It describes the removed preset-panel interaction. The focused current-machine harness is separate; no assertion was silently disabled in the original harness.
+
+Host renders are illustrative, with a substitute font, not hardware screenshots. Geometry is sampled into 32 forward points retraced in 64-point retained paths. Dynamic is schematic. Native resource allocation, target stack usage and CPU profiling must come from an actual authenticated build/device run.

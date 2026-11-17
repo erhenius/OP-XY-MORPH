@@ -1,0 +1,11 @@
+Repository assembly checked 17 November 2026
+PASS: 1751 vendor payload files match original authenticated manifest.
+PASS: Original sdk_addons.prepare including 18350 bundled-machine boundary checks.
+PASS: Strict host display compile (-Wall -Werror).
+PASS: 10647 GUI invariants, 137088 geometry contracts, 256 dynamic mapping checks.
+PASS: 527606 timer/compositor assertions across 2040 combinations.
+PASS: 202 sensitivity artwork samples, 76 focused controller/compositor checks.
+PASS: SDK-addition ZIP and unpacked source contents agree.
+PASS: Import ZIP has current source version, exact current display source and latest 12-page guide.
+No native Blackfin build, device transfer, remote Git push or release publication performed during packaging.
+Prior full SDK-suite limitations remain documented in docs/VALIDATION.md.

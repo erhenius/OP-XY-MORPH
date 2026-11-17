@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "name": "Morph SVG native path validation (after GUI SDK)",
+  "base_payload_sha256": null,
+  "base_profile_sha256": "46a8d31a8afc0dfc908d17bd2ab98c50845fc7cd6be01db293bc7e13790d3fbc",
+  "profile_sha256": "46a8d31a8afc0dfc908d17bd2ab98c50845fc7cd6be01db293bc7e13790d3fbc",
+  "files": {
+    "sdk/tooling/svg_safety.py": {
+      "before": "e21633de469951d323fb48c99e9b2b1d350d1fa8ab2a531d01ffe9bf260bd74a",
+      "after": "2bd9288bac092a2663ba2e00febbc0ae9b783227f05c44118269253ae252d73a"
+    }
+  },
+  "previous_installer": "/Users/eren/Documents/OP-XY Manager/editions/tmpc4t1stvu/installer",
+  "previous_toolchain": "/workspace/scratch/e480ac684ffd/deliverables/XY_Machine_Manager_Add_Remove_20261115/installer/sdk/local/toolchain",
+  "status": "Morph host boundary checks passed; native and hardware acceptance required"
+}

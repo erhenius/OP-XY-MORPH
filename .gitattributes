@@ -1,0 +1,5 @@
+# Preserve exact-base bytes on every host, including Windows checkout.
+* -text
+*.pdf binary
+*.png binary
+*.zip binary

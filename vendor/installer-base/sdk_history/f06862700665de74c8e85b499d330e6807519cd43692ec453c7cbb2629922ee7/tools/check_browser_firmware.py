@@ -1,0 +1,290 @@
+"""Compare browser output to independent GNU ELF and Python container readers."""
+import copy
+import json
+from pathlib import Path
+import re
+import subprocess
+import sys
+import zipfile
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from tooling.formats import elf32, ldr, mapped_offset, require, sha
+from tooling import extensions, screen, startup_label, stock_tables
+from tooling.adapters import catalog_defaults
+from tooling.firmware import active_services, assemble, hook_instruction, patch_active
+from tooling.machines import number_layout
+from tooling.native import configuration, number_suffixes, package_collection
+
+
+def check_startup_label(module, symbols, base, expected):
+    """The linked thunk is exactly the reviewed one: R2 replay, stock draw call, stock continuation."""
+    entry, text = symbols[startup_label.SYMBOL], symbols['kit_startup_label_text']
+    require(startup_label.thunk_ok(module, entry['value'] - base, entry['size'], text['value']),
+            'Startup thunk changed')
+    at = text['value'] - base
+    require(text['size'] == len(expected) and module[at:at + text['size']] == expected,
+            'Unexpected startup label')
+
+
+# Unselected machines' callbacks resolve to kit_absent (startup.cpp.in): R0 = 0; RTS.
+ABSENT = bytes.fromhex('0060 1000')
+
+
+def check_fallbacks(module, symbols, base):
+    """The linked absent-machine callback declines without side effects."""
+    absent = symbols['kit_absent']
+    at = absent['value'] - base
+    require(absent['size'] == len(ABSENT) and module[at:at + len(ABSENT)] == ABSENT,
+            'Absent-machine callback differs from its source')
+
+
+def expanded_profile(profile):
+    """The reviewed experimental 4 MiB layout (builder/core.mjs expandedProfile), applied independently."""
+    x = profile['experimental_memory']
+    require(isinstance(x, dict) and set(x) == {'module_base', 'reserved_bytes', 'heap_after'} and
+            isinstance(x['heap_after'], str) and re.fullmatch('[0-9a-f]{16}', x['heap_after']) is not None,
+            'Experimental memory layout is inconsistent')
+    # Checked here too, with the stock instruction decoder, rather than trusted.
+    opcode, heap = stock_tables.decode('imm32', bytes.fromhex(x['heap_after']))
+    heaps = [p for p in profile['patches'] if p['kind'] == 'heap']
+    end = profile['module_base'] + profile['reserved_bytes']
+    mib = 1024 * 1024
+    require(len(heaps) == 2 and
+            all(type(x[k]) is int for k in ('module_base', 'reserved_bytes')) and
+            (profile['module_base'] - profile['heap_fill_base']) % mib == 0 and
+            x['reserved_bytes'] > profile['reserved_bytes'] and x['reserved_bytes'] % mib == 0 and
+            x['module_base'] + x['reserved_bytes'] == end == profile['heap_fill_base'] + profile['heap_fill_bytes'] and
+            profile['heap_fill_base'] < x['module_base'] and heap == x['module_base'] - profile['heap_fill_base'] and
+            heap % mib == 0 and profile['reserved_bytes'] % mib == 0 and
+            all(stock_tables.decode('imm32', bytes.fromhex(p['before'])) == (opcode, profile['heap_fill_bytes']) and
+                stock_tables.decode('imm32', bytes.fromhex(p['after'])) == (opcode, profile['module_base'] - profile['heap_fill_base'])
+                for p in heaps), 'Experimental memory layout is inconsistent')
+    expanded = copy.deepcopy(profile)
+    del expanded['experimental_memory']  # the derived profile is the layout itself
+    expanded.update(module_base=x['module_base'], reserved_bytes=x['reserved_bytes'])
+    for patch in expanded['patches']:
+        if patch['kind'] == 'heap':
+            patch['after'] = x['heap_after']
+    return expanded
+
+
+def selection_services(kit, result):
+    """The services a selection links (builder/core.mjs activeServices): its machines' kinds
+    and declared features, its extensions, and a master processor among them."""
+    selected = [m for m in kit['machines'] if m['id'] in result['selected']]
+    return active_services(kit['profile'], [m['kind'] for m in selected] +
+                           [f for m in selected for f in m.get('features', [])] +
+                           (['extension'] if result['extensions'] else []) +
+                           # kit.json names it master_processor; older kits, master_filter (core.mjs processorOf).
+                           (['master_filter'] if any((e.get('master_processor') or e.get('master_filter')) and
+                                                     e['id'] in result['extensions']
+                                                     for e in kit.get('extensions', [])) else []))
+
+
+def assembled(stock, module, symbols, reviewed, services, profiling):
+    """Python's own LDR for a GNU-linked module and the reviewed profile it was linked for."""
+    profile = copy.deepcopy(reviewed)
+    for patch in profile['patches']:
+        if not patch_active(patch, services, profiling):
+            patch['after'] = patch['before']
+        elif patch['kind'] == 'hook':
+            patch['after'] = hook_instruction(patch, symbols[patch['symbol']]['value']).hex()
+        elif patch['kind'] == 'startup':
+            patch['after'] = startup_label.jump(symbols[patch['symbol']]['value']).hex()
+    return assemble(stock, module, profile, reviewed, len(profile['patches']), services, profiling)
+
+
+def check_module(prefix, result, profile, boot_label):
+    """A GNU-linked module for the profile it was linked for: digest, fallbacks, label,
+    reserved region, allocation and globals. Returns its bytes and symbols."""
+    sections, symbols = elf32(prefix.with_suffix('.elf').read_bytes())
+    module = prefix.with_suffix('.bin').read_bytes()
+    require(sha(module) == result['module_sha256'], 'GNU module digest differs: ' + result['name'])
+    low = profile['module_base']
+    check_fallbacks(module, symbols, low)
+    check_startup_label(module, symbols, low, boot_label)
+    require(symbols['__extensions_reserved_start']['value'] == low and
+            symbols['__extensions_reserved_end']['value'] - low == profile['reserved_bytes'] - profile['table_bytes'] and
+            symbols['__extensions_initialized_end']['value'] - low == result['sizes']['initialized'] and
+            symbols['__extensions_module_end']['value'] - low == result['sizes']['allocated'] and
+            sections.get('.bss', {}).get('size', 0) == result['sizes']['bss'], 'GNU memory allocation differs: ' + result['name'])
+    for name, value in result['globals'].items():
+        require(symbols[name]['value'] == value, 'GNU symbol differs: ' + name)
+    return module, symbols
+
+
+def check_numbers(kit, result, symbols):
+    """The selection's numbers, worked out again by the Python numbering the native build
+    uses: each selected machine's number symbols must carry them; returns them."""
+    numbers = number_layout(kit['profile']['identities'], [(i, None, n) for i, n in kit['fixed'].items()],
+                            result['layout'], [(m['id'], m['kind'], m['identity']) for m in kit['machines']
+                                               if m['id'] in result['selected']])
+    for machine in kit['machines']:
+        # A sample engine asking for no page draws its own screen (builder/core.mjs numberSymbols).
+        own_screen = machine['kind'] == 'sample' and machine['identity']['page'] is None
+        value = lambda suffix: symbols.get(machine['prefix'] + suffix, {}).get('value')
+        if machine['id'] not in result['selected']:
+            # An unselected machine has no numbers: no startup, catalog or control lookup matches it.
+            require(all(value(s) == 0 for s in number_suffixes(machine['kind'], own_screen)),
+                    'Unselected machine has numbers: ' + machine['id'])
+            continue
+        own = numbers[machine['id']]
+        # A sample engine drawing its own screen numbers that screen's page; its page
+        # symbol stays its stock page.
+        pairs = {'player': (('_player_id', 'player'), ('_page_id', 'page')),
+                 'effect': (('_fx_id', 'effect'), ('_fx_page_id', 'page')),
+                 'sample': (('_engine_id', 'engine'), ('_screen_page_id' if own_screen else '_page_id', 'page'))
+                 }.get(machine['kind'], (('_engine_id', 'engine'), ('_page_id', 'page')))
+        require(all(value(suffix) == own[key] for suffix, key in pairs),
+                'Selection numbers differ: ' + machine['id'])
+    return numbers
+
+
+def check_expanded(directory, kit, stock, boot_label):
+    """GNU-linked 4 MiB modules: their symbols and sizes, and Python's LDR equal to the browser's."""
+    results = directory / 'reference/selections-expanded.json'
+    # A profile with the layout must pass its checks here (named errors) before its results are required.
+    reviewed = expanded_profile(kit['profile']) if 'experimental_memory' in kit['profile'] else None
+    require(results.is_file() == (reviewed is not None), 'Experimental memory checks missing or unexpected')
+    if reviewed is None:
+        return 0
+    selections = json.loads(results.read_text())
+    for result in selections:
+        prefix = directory / 'reference' / result['name']
+        module, symbols = check_module(prefix, result, reviewed, boot_label)
+        check_numbers(kit, result, symbols)  # every 4 MiB build, the whole collection included
+        services = selection_services(kit, result)
+        for profiling, suffix in ((True, '.ldr'), (False, '.profiling-off.ldr')):
+            require(assembled(stock, module, symbols, reviewed, services, profiling) == prefix.with_suffix(suffix).read_bytes(),
+                    'Python/browser firmware differs (experimental memory): ' + suffix)
+    return len(selections)
+
+
+def main():
+    directory, stock_file, content = map(lambda p: Path(p).resolve(), sys.argv[1:])
+    subprocess.run(['node', str(ROOT / 'tools/check_browser_firmware.mjs'), str(directory), str(stock_file), str(content)], check=True)
+    kit = json.loads((directory / 'kit.json').read_text(encoding='utf-8'))
+    # Definitions of the machines the kit was built from, wherever they live.
+    collection = configuration(package_collection(directory / 'source'))[1]
+    definitions = {m.id: m.definition for m in collection}
+    extension_sources = {e.id: e for e in collection.extensions}
+    stock = stock_file.read_bytes()
+    require(sha(stock) == kit['profile']['stock_sha256'], 'Unexpected stock input')
+    # 0x8c0c7d04 measures the text using this stock width table, adding
+    # one pixel per glyph. The existing draw call centers it at x=240.
+    offset = mapped_offset(ldr(stock), 0x84015fb4, 96)
+    widths = stock[offset:offset + 96]
+    boot_label = startup_label.label(kit['version'])
+    label = boot_label[:-1]
+    require(all(32 <= c < 128 for c in label), 'Startup label outside stock font')
+    width = sum(widths[c - 32] + 1 for c in label)
+    left = 240 - width // 2
+    require(0 < width and 100 <= left and left + width <= 400, 'Startup label exceeds its drawing area')
+    # The browser links the native objects in native order, so selecting the machines
+    # the native package links (all of them when they fit), with every extension,
+    # reproduces it exactly.
+    selections = json.loads((directory / 'reference/selections.json').read_text())
+    linked = kit.get('linked', [m['id'] for m in kit['machines']])
+    full = [r for r in selections if set(r['selected']) == set(linked) and r['layout'] is not None and
+            r['extensions'] == [e['id'] for e in kit.get('extensions', [])]]
+    require(len(full) == 1, 'The checked selections must include the linked machines with every extension, '
+                            "numbered with the native package's layout")
+    require(full[0]['layout'] == json.loads((directory / 'source/layout.json').read_bytes())['machines'],
+            "The linked machines' selection must use the native package's layout")
+    everything = directory / 'reference' / full[0]['name']
+    source_profiling = json.loads((directory / 'source/manifest.json').read_bytes()).get('profiling')
+    require(type(source_profiling) is bool, 'Source package profiling must be a boolean')
+    source_suffix = '.ldr' if source_profiling else '.profiling-off.ldr'
+    require(everything.with_suffix(source_suffix).read_bytes() == (directory / 'source/candidate/os.ldr').read_bytes(),
+            'Browser firmware for the linked machines differs from the native package')
+    for result in selections:
+        prefix = directory / 'reference' / result['name']
+        module, symbols = check_module(prefix, result, kit['profile'], boot_label)
+        numbers = check_numbers(kit, result, symbols)
+        services = selection_services(kit, result)
+        modes = {}
+        for profiling in (True, False):
+            expected = assembled(stock, module, symbols, kit['profile'], services, profiling)
+            suffix = '.ldr' if profiling else '.profiling-off.ldr'
+            require(expected == prefix.with_suffix(suffix).read_bytes(), 'Python/browser firmware differs: ' + suffix)
+            modes[profiling] = expected
+        # The modes differ only inside the reviewed profiling hook windows.
+        restored = bytearray(modes[False])
+        for patch in kit['profile']['patches']:
+            if patch.get('profiling') is False:
+                at, count = int(patch['file_offset'], 16), patch['length']
+                require(modes[True][at:at + count] == bytes.fromhex(patch['before']),
+                        'SDK default changed profiling instructions')
+                restored[at:at + count] = modes[True][at:at + count]
+        require(bytes(restored) == modes[True], 'Profiling mode changed unrelated bytes')
+        expected = modes[True]
+        selected = [m for m in kit['machines'] if m['id'] in result['selected']]
+        catalog = json.loads((content / 'op1_factory.json').read_bytes())
+        for machine in selected:
+            if not machine['catalog']:
+                continue  # an aux machine is no instrument: it has no menu entry (builder/core.mjs presetPath)
+            key = {'effect': 'fx_types', 'player': 'seq_types'}.get(machine['kind'], 'engine_types')
+            entry = json.loads(machine['catalog'].strip().lstrip(','))
+            # An effect's or player's menu entry carries this selection's number, which
+            # need not be the native package's.
+            if machine['kind'] == 'effect':
+                entry['id'] = numbers[machine['id']]['effect']
+            elif machine['kind'] == 'player':
+                entry['id'] = numbers[machine['id']]['player'] + 4
+            catalog[key].append(entry)
+        actual_catalog = (prefix / 'content/op1_factory.json').read_bytes()
+        require(json.loads(actual_catalog) == catalog, 'Browser catalog differs')
+        expected_files = {'os.ldr': expected, 'content/op1_factory.json': actual_catalog}
+        for machine in selected:
+            if not machine['catalog']:
+                # An aux machine's presets are the files the kit generated (tooling.adapters.aux_preset_files).
+                for name, text in machine.get('auxPresets', {}).items():
+                    data = (prefix / name).read_bytes()
+                    require(json.loads(data) == json.loads(text), 'Aux preset differs: ' + name)
+                    expected_files[name] = data
+            elif machine['kind'] in ('synth', 'drum', 'sample'):
+                name = 'content/presets/' + machine['id'] + '/default.json'
+                data = (prefix / name).read_bytes()
+                preset = json.loads(data)
+                own = machine.get('presets', {})
+                if 'default' in own:
+                    require(preset == own['default'], 'Machine preset differs: default')
+                else:
+                    definition = definitions[machine['id']]
+                    defaults = [16384] * 8 if machine['kind'] == 'drum' else catalog_defaults(definition)
+                    entry = json.loads(machine['catalog'].strip().lstrip(','))
+                    require(preset['type'] == entry['type'] and preset['platform'] == 'OP-XY' and
+                            preset['version'] == 4 and preset['engine']['params'] == defaults and
+                            preset['regions'] == [] and preset['fx']['active'] is False and
+                            preset['lfo']['active'] is False, 'Default preset differs from instrument definition')
+                expected_files[name] = data
+                for preset_name, document in own.items():
+                    name = 'content/presets/' + machine['id'] + '/' + preset_name + '.json'
+                    data = (prefix / name).read_bytes()
+                    require(json.loads(data) == document, 'Machine preset differs: ' + preset_name)
+                    expected_files[name] = data
+            if machine.get('artwork'):
+                name = 'content/display/' + machine['asset']
+                art = screen.compose(machine['artwork'].encode())
+                require((prefix / name).read_bytes() == art, 'Browser artwork differs')
+                expected_files[name] = art
+        for identity in result['extensions']:
+            extension = extension_sources[identity]
+            if extension.master_filter is not None:
+                path = extension.root / extension.master_filter['artwork']
+                name = 'content/display/' + path.name
+                art = extensions.validate_master_artwork(path)
+                require((prefix / name).read_bytes() == art, 'Extension artwork differs')
+                expected_files[name] = art
+        with zipfile.ZipFile(prefix.with_suffix('.zip')) as archive:
+            require(set(archive.namelist()) == set(expected_files) and archive.testzip() is None, 'Invalid ZIP file')
+            for name, data in expected_files.items():
+                require(archive.read(name) == data, 'ZIP payload differs')
+    expanded = check_expanded(directory, kit, stock, boot_label)
+    print('Independent GNU/Python verification passed for the checked selections (module, symbols, BSS, LDR, assets, ZIP)'
+          + (f', and {expanded} at the experimental 4 MiB layout (module, symbols, BSS, LDR).' if expanded else '.'))
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "sdk": "1.13",
+  "kind": "effect",
+  "description": "Eight-slot send-effect chain with slot selection, LFO routing, scramble and undo. Requires the Morph-compatible MultiFX SDK addition."
+}

@@ -1,0 +1,4 @@
+// Freestanding <cstdio>: declares nothing; machine code performs no I/O.
+#ifndef OPXY_FREESTANDING_CSTDIO_
+#define OPXY_FREESTANDING_CSTDIO_
+#endif  // OPXY_FREESTANDING_CSTDIO_
