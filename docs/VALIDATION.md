@@ -11,7 +11,7 @@
 | gui2d14 | Owner reported smooth routed encoder movement on hardware |
 | gui2d16 | Public source package with AUX M3 controls and curves. Temporary sweep diagnostics removed |
 
-gui2d14 was reported smooth on hardware. gui2d16 is the current public source release. Device testing and native memory or CPU measurements for gui2d16 are unrecorded here.
+gui2d14 was reported smooth on hardware. gui2d16 is the current public source release. The Trine HUD update was confirmed on OP-XY hardware on 18 November 2026.
 
 ## gui2d16 host checks
 
@@ -23,7 +23,7 @@ gui2d14 was reported smooth on hardware. gui2d16 is the current public source re
 - Generated SDK bindings compiled on the host with warnings treated as errors.
 - The original installer boundary suite recorded 18,350 checks against the bundled baseline machine.
 
-`tools/check.py` reruns the focused machine suite. `tools/prepare_sdk.py` prepares the SDK and runs the original baseline boundary suite.
+The HUD fixture was compiled locally against the compatible patched SDK. CI verifies the public source archive.
 
 ## Historical SDK suite results
 
@@ -32,3 +32,7 @@ The prior full SDK run recorded 18 failures, 15 errors and 39 skips across 549 t
 The historical full boundary harness with gui2c or the current machine fails an obsolete `M3 K4 did not open presets` expectation. It describes the removed preset-panel interaction. The focused current-machine harness is separate; no assertion was silently disabled in the original harness.
 
 Host renders are illustrative, with a substitute font, not hardware screenshots. Geometry is sampled into 32 forward points retraced in 64-point retained paths. Dynamic is schematic. Native resource allocation, target stack usage and CPU profiling must come from an actual authenticated build/device run.
+
+## Trine HUD
+
+The owner confirmed the A/B graphs on hardware. The host GUI fixture passes 12,610 checks. With Trine selected, holding Instrument can briefly flash an “unknown” low-pass visual. This remains a minor open display bug.

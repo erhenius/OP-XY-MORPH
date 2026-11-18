@@ -1,1 +1,0 @@
-Gate37a is preserved as owner-accepted rollback. Retain its verified candidate, kit/layout and original project companions. Gate38 saves v4 banks which older versions reject. No firmware included or staged.

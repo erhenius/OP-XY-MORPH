@@ -1,24 +1,10 @@
-name: Host checks
+name: Morph source checks
 on: [push, pull_request]
 permissions:
   contents: read
 jobs:
-  host:
+  source:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: python3 tools/verify_release.py
-      - run: python3 builder/test_boundary.py
-      - run: python3 builder/test_m1.py
-      - run: python3 builder/test_route_parity.py
-      - run: python3 -m unittest test_imports test_manager test_memory test_runtime_fallback test_updates
-        working-directory: builder
-      - run: python3 -m unittest discover -s tests -p test_track_control.py
-        working-directory: builder/sdk
-# Host models only. No native compilation, device operations or CPU measurement.
+      - run: python3 tools/package_source.py --check

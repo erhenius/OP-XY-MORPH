@@ -1,7 +1,0 @@
-# Architecture
-
-app.py: threaded Tk UI; manager.py: scan, source pinning/snapshots, build orchestration and asset protection; imports.py: bounded import and SDK validation; catalog.py: lazy official metadata cache; engine.mjs: exact reconstruction, generic link and asset generation. backend.py retains the original device transfer, source integrity, log and report mechanisms. native_worker.py retains authenticated target arithmetic runtime handling. sdk/ is unchanged.
-
-State is local under OPXY-SDK/private. Reading/building never calls device push. Only Stage invokes SDK verified push after candidate inventory/hash and baseline checks. Existing number assignments are supplied to linkKit and compared afterwards. Full linked allocation is bounded by 4 MiB minus table bytes. All selected machines must roundtrip to exact stock. No removal/replacement semantics. The regenerated shared catalog may change only from the expected reconstructed baseline; all other differing installed resources are refused.
-
-Compile sources are snapshotted, hashed and compared to the SDK compile report. Each build retains its source snapshots. Generic resume is refused so changed configuration cannot accidentally finalize old compiled inputs. Imported machine roots are validated without executing repository hooks. Cache Git checkouts are full-commit pinned and must remain clean; interrupted fetches use disposable partial directories.

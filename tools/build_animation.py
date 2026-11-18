@@ -6,7 +6,7 @@ R=Path(__file__).resolve().parents[1];B=R/'local/animation'
 for n in ['svg','tiles','frames']:(B/n).mkdir(parents=True,exist_ok=True)
 def run(args,**kw):subprocess.run([str(x) for x in args],cwd=R,check=True,**kw)
 exe=B/('render.exe' if os.name=='nt' else 'render')
-run([os.environ.get('CXX','g++'),'-O2','-std=c++11','-I',R/'local/prepared-installer/sdk/sdk/include','-I',R/'local/prepared-installer/sdk/sdk/platform/opxy-1.2.1',R/'tools/render_animation.cpp','-o',exe])
+run([os.environ.get('CXX','g++'),'-O2','-std=c++11','-I',R/'local/sdk/sdk/include','-I',R/'local/sdk/sdk/platform/opxy-1.2.1',R/'tools/render_animation.cpp','-o',exe])
 with (B/'frames.jsonl').open('w') as f:run([exe],stdout=f)
 run([sys.executable,R/'docs/source/render_svg.py',B/'frames.jsonl',R/'machine/morphcapture/panel.svg.fragment',B/'svg'])
 run(['node',R/'tools/render_animation_tiles.cjs']);run([sys.executable,R/'tools/compose_animation.py'])

@@ -6,7 +6,6 @@
   <p>
     <a href="docs/Morph-Quick-Reference.pdf">Illustrated guide</a> ·
     <a href="docs/INSTALLATION.md">Installation</a> ·
-    <a href="docs/AI_INSTALLATION_SUPPORT.md">AI support</a> ·
     <a href="docs/VALIDATION.md">Validation</a>
   </p>
 </div>
@@ -50,7 +49,7 @@ Hold the selected instrument track for **150 ms** to open the HUD. Release to cl
 
 - **M1:** supported instrument parameters in A/S/B rows.
 - **M2:** AMP and FILTER envelopes, with A above B. Red identifies the selected scene/envelope; the white title marks the selected bank.
-- **M3:** the current filter model and its A/B graphical controls. Dynamic uses K1 low cut, K2 compression, K3 distortion and K4 high cut.
+- **M3:** the current filter model and its A/B graphical controls. With Trine selected, each scene shows its sweep response, resonance and decay. Dynamic uses K1 low cut, K2 compression, K3 distortion and K4 high cut.
 - **SHIFT:** current/A/B values beside stock parameter icons. Unsupported scene fields show dashes.
 
 The stock scramble/copy/paste/save menu hides after **1.5 seconds** of eligible track hold, while its actions remain available. Hold the track **before** SHIFT for Morph gestures; SHIFT before track preserves stock menu access.
@@ -85,73 +84,14 @@ Manual BYPASS stays bypassed when the LFO or recorded movement continues. Exclud
 
 ## Install or update
 
-This repository provides source and an exact-base SDK addition. **It does not include a flashable firmware image, private kit, compiler toolchain or the signed macOS Manager app.**
+Download the [Morph machine source](release/Morph_gui2d16_Source.zip). To import this revision into the standalone XY Machine Manager, use your compatible local Morph bundle as described in [Installation](docs/INSTALLATION.md).
 
-### With an existing Manager
+## Development
 
-1. Preserve the working installation and its build/backup records. Select the correct XY profile and scan its installed setup.
-2. **Already using the gui2d SDK edition?** Keep it. Existing gui2d installations use the same SDK addition.
-3. **Using the matching earlier GUI SDK?** Import [the SDK addition](integration/Morph_gui2d_SDK_Addition.zip). Its importer checks the exact base and creates a separate installer. Investigate any mismatch instead of forcing it.
-4. In the prepared Manager, import [the current Morph source ZIP](release/Morph_gui2d16_Source.zip) and select **Replace installed Morph**. Do not add a second Morph or replace unrelated machines.
-5. Follow the normal calculate/build/review/stage/readback workflow and the established manual **WRITE OS** procedure. File staging and readback do not themselves write the boot partition.
+The machine source is in [machine/morphcapture](machine/morphcapture). Run `python3 tools/package_source.py --check` to verify the published source ZIP against the checkout. Run `python3 tools/package_source.py` to package local edits.
 
-**New computer, different OS or a different SDK edition?** Start with [Installation](docs/INSTALLATION.md). For guided troubleshooting, give your assistant [AI installation support](docs/AI_INSTALLATION_SUPPORT.md).
+The Trine A/B display is hardware-confirmed. The brief low-pass visual when holding Instrument with Trine selected is tracked in [validation notes](docs/VALIDATION.md).
 
-### Platform compatibility
+## Licensing
 
-This table describes the **pinned SDK snapshot in this repository**, not a promise about newer upstream versions.
-
-| Host | Native build support in this snapshot |
-| --- | --- |
-| Apple-silicon macOS | Authenticated `darwin-arm64` toolchain profile; the owner's established Manager workflow. |
-| Windows x86_64 | Authenticated `windows-x86_64` profile. Source Manager/MTP workflow was not validated end-to-end here. |
-| Linux x86_64 | Authenticated `linux-x86_64` profile. Build the pinned tools using the documented Docker recipe; glibc 2.36+ is required. |
-| Other architectures | No matching native profile is documented here. Do not substitute another host's toolchain. |
-
-Each XY needs its **own profile and installed-setup scan**. Keep firmware, private kits, build jobs and device backups outside the Git checkout.
-
-## Release and validation
-
-gui2d16 brings the extended sensitivity ranges, three pad curves, and separate horizontal pad and vertical HUD indicators to AUX M3. It includes the routed encoder changes from gui2d14 and removes the temporary timing readouts.
-
-Host checks cover the GUI, pad response, preset selection, project migration, held K4 input and eight-track routing. Native compilation and device testing of gui2d16 are unrecorded in this package. [Validation](docs/VALIDATION.md) · [Repository check results](REPOSITORY_CHECKS.txt)
-
-## Develop and contribute
-
-From the repository root, with Python 3.11+ and GNU g++ with UBSan:
-
-```sh
-python3 tools/prepare_sdk.py
-python3 tools/check.py
-```
-
-Preparation verifies the original installer payload, creates a separate `local/prepared-installer`, and runs its original boundary checks. It does not access the XY. On Windows, use the selected Python 3.11+ interpreter, for example `py -3.12`, instead of `python3`.
-
-After changing source or the guide, rebuild the import ZIP:
-
-```sh
-python3 tools/package_source.py
-```
-
-Read [Development](docs/DEVELOPMENT.md), [Architecture](docs/ARCHITECTURE.md) and [AGENTS.md](AGENTS.md) before changing the integration. Keep graphics, control behaviour and SDK changes separately reviewable. A passing host test does not replace a Blackfin build or device test.
-
-For a useful bug report, include the source version, host OS/architecture, active SDK edition, the affected page (**AUX M3 or instrument M3**), reproduction steps and the first relevant diagnostic. Do not upload firmware, private kits, projects or device backups in a public report.
-
-## Repository map
-
-| Path | Contents |
-| --- | --- |
-| [`machine/morphcapture/`](machine/morphcapture/) | Current gui2d16 source; authoritative implementation. |
-| [`release/`](release/) | Ready-to-import source ZIP, including the illustrated guide. |
-| [`integration/`](integration/) | Exact-base SDK addition, unpacked changes and manifest. |
-| [`docs/`](docs/) | Guide, installation, AI support, architecture and validation. |
-| [`docs/images/`](docs/images/) | README illustrations and the eight-screen collage. |
-| [`docs/source/`](docs/source/) | Editable PDF generator and renderer assets. |
-| [`tests/`](tests/) / [`tools/`](tools/) | Focused checks, preparation and packaging tools. |
-| [`vendor/installer-base/`](vendor/installer-base/) | Authenticated historical installer/SDK baseline and its test dependencies. |
-
-**The vendor's bundled Morph and manuals are historical.** Use the root documentation and `machine/morphcapture/` for current behaviour. Preserve the vendor files byte-for-byte and keep `.gitattributes` so Windows line-ending conversion cannot invalidate their hashes.
-
-## Licensing and provenance
-
-Morph is independent, unofficial OP-XY development. The supplied installer carries GPLv3; Open-XY SDK portions retain their MIT notices, and other components retain their original licenses. See [LICENSE](LICENSE), [component licenses](LICENSES/) and [Provenance](docs/PROVENANCE.md). No ownership or endorsement by teenage engineering is implied.
+See [LICENSE](LICENSE) and [component notices](LICENSES/). Morph is an independent OP-XY project.
