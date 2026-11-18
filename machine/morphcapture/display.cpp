@@ -4,6 +4,7 @@
 #include <opxy/morph_hud_snapshot.hpp>
 #include "legacy_aux.hpp"
 #include "stock_plot.hpp"
+#include "trine_sweep.hpp"
 namespace morphcapture {
 namespace d=opxy::draw;
 using opxy::u32;using opxy::i32;
@@ -261,6 +262,56 @@ inline void shift(Frame& f,const hud::Snapshot& s){
   number(text,at<26&&s.captured_b?norm(s.b[at]):-1);txt(f,s.edit_side?20+k:8+k,312,y+22,text);
  }
 }
+// Match Trine's main page on the five existing Morph frequency-axis marks.
+inline i32 trine_x(u32 i){
+ const i32 marks[5]={62,139,193,241,298};
+ if(i==32)return marks[4];
+ return marks[i/8]+(marks[i/8+1]-marks[i/8])*static_cast<i32>(i%8)/8;
+}
+inline void trine_filter(Frame& f,const i32* v,u32 side,bool edit,CurveCache* cache){
+ const u32 edge=2*side+1;
+ const i32 row=104*static_cast<i32>(side);
+ const i32 geometry[4]={v[0]>>16,v[1]>>16,v[2]>>16,0};
+ if(curve_cached(cache,3,geometry))f.paths[edge]=cache->path;
+ else{
+  i32 pixels[m3_display::curve_points];
+  m3_display::sweep_pixels(v[0],v[1],v[2],pixels);
+  // The HUD path has room for 32 of Trine's 33 samples. Drop the point
+  // closest to its neighbours' line, preserving sharp resonant peaks.
+  u32 omit=1;
+  i32 smallest=0x7fffffff;
+  for(u32 i=1;i<32;++i){
+   const i32 left=trine_x(i-1),right=trine_x(i+1);
+   const i32 estimate=pixels[i-1]+(pixels[i+1]-pixels[i-1])*(trine_x(i)-left)/(right-left);
+   const i32 diff=pixels[i]-estimate;
+   const i32 error=diff<0?-diff:diff;
+   if(error<smallest){smallest=error;omit=i;}
+  }
+  for(u32 i=0;i<32;++i){
+   const u32 sample=i+(i>=omit?1u:0u);
+   const i32 y=25+(pixels[sample]-m3_display::graph_top)*68/96;
+   f.paths[edge].points[i]={(trine_x(sample)-190)*512,(y-60)*512};
+  }
+  curve_ribbon(f,edge);
+  u32 key=11;
+  for(u32 k=0;k<3;++k)key=(key^static_cast<u32>(geometry[k]))*16777619u;
+  f.paths[edge].key=(key&0x7ffffffeu)+1;
+  curve_save(cache,3,geometry,f.paths[edge]);
+ }
+ node(f,edge,190,60+row,2048,edit?1:3,d::fill_and_stroke);
+ const u32 center=m3_display::interpolate(m3_display::frequency_table,m3_display::normalized(v[0]),6);
+ u32 nearest=0;
+ while(nearest<32 && center>(m3_display::plot_frequency[nearest]+m3_display::plot_frequency[nearest+1])/2)++nearest;
+ const u32 text=edit?16+side*4:2;
+ char q[5]="Q 00";number(q+2,norm(v[1]));
+ txt(f,text,d::clamp(trine_x(nearest)-9,62,280),36+row,q,750);
+ constexpr u32 times[]={0,150,161,173,186,200,215,231,248,267,287,308,331,356,382,411,442,475,510,548,589,633,680,731,785,844,907,975,1048,1126,1210,1300};
+ const u32 ms=times[v[3]>0?static_cast<u32>(v[3])>>26:0];
+ char label[8]="0000 ms";
+ u32 n=ms;
+ for(int k=3;k>=0;--k){label[k]=static_cast<char>('0'+n%10);n/=10;}
+ txt(f,text+1,259,88+row,ms?(ms>=1000?label:label+1):"Off",750);
+}
 // Stock-resource wireframe plots; values stay next to their controls instead
 // of occupying prose rows across the graph. All curve coordinates are Q10.
 inline void filter(Frame& f,const hud::Snapshot& s,u32 side,CurveCache* cache=0){
@@ -268,13 +319,14 @@ inline void filter(Frame& f,const hud::Snapshot& s,u32 side,CurveCache* cache=0)
  const i32* v=(side?s.b:s.a)+14;const bool edit=s.edit_side==side;
  const u32 body=side*2,edge=body+1;
  node(f,ui::hudHorizontal,0,0);
- const char* name=s.filter_type==17?"high-pass":s.filter_type==9?"z lowpass":s.filter_type==10?"svf":s.filter_type==16?"ladder":s.filter_type==18?"dynamic":"filter";
+ const char* name=s.filter_type==11?"Trine":s.filter_type==17?"high-pass":s.filter_type==9?"z lowpass":s.filter_type==10?"svf":s.filter_type==16?"ladder":s.filter_type==18?"dynamic":"filter";
  txt(f,side,32,18+row,name,819);symbol(f,side,side?1:0,18,15+row,850);
  if(!(side?s.captured_b:s.captured_a)){txt(f,2+side,62,60+row,"Scene unavailable",819);return;}
  const u32 axis=side?ui::filterAxis1_0:ui::filterAxis0_0;
  for(u32 k=0;k<4;++k)node(f,axis+k,62,94+row);
  const char* labels[5]={"50","1k","2k","5k","20kHz"};const i32 xs[5]={62,139,193,241,298};
  for(u32 k=0;k<5;++k)txt(f,6+side*5+k,xs[k],105+row,labels[k],410);
+ if(s.filter_type==11){trine_filter(f,v,side,edit,cache);return;}
  const i32 geometry_values[4]={v[0],s.filter_type==18?v[3]:0,static_cast<i32>(s.filter_type),0};
  if(curve_cached(cache,2,geometry_values))f.paths[edge]=cache->path;
  else {
