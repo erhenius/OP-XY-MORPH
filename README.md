@@ -84,7 +84,7 @@ Manual BYPASS stays bypassed when the LFO or recorded movement continues. Exclud
 
 ## Install or update
 
-Download the [Morph machine source](release/Morph_gui2d16_Source.zip). To import this revision into the standalone XY Machine Manager, use your compatible local Morph bundle as described in [Installation](docs/INSTALLATION.md).
+Download the [Morph build bundle](release/Morph_gui2d16_Trine_HUD_Bundle.zip) and choose **File → Import Machine ZIP…** in TE Builder. The bundle includes the current machine source and its Morph SDK integration. The manifest pins the compatible Open-XY revision. See [Installation](docs/INSTALLATION.md) for SDK setup and packaging instructions. The [machine-only source ZIP](release/Morph_gui2d16_Source.zip) is also available.
 
 ## Development
 

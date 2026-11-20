@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "name": "Morph-gui2d16-Trine-HUD",
+  "id": "morphcapture",
+  "mode": "combined",
+  "sdkCommit": "a07b08faeb58cc7e74cdbc8bd98f809a8ffd5159",
+  "machine": "machine/morphcapture",
+  "layout": {
+    "engine": 57,
+    "page": 219
+  },
+  "claims": [
+    "aux:11",
+    "save:morph-scenes",
+    "hook:physical-pad",
+    "hook:physical-midi"
+  ],
+  "patches": [
+    {
+      "path": "integration/morph-trine-sdk.patch",
+      "sha256": "d6ce688c4bb36e4826dcdb306f57f34c949317e89dd9e026e3fb708db85bf50f"
+    }
+  ]
+}

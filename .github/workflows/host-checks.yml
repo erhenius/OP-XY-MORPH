@@ -8,3 +8,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 tools/package_source.py --check
+      - run: python3 tools/package_manager.py --check

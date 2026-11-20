@@ -1,4 +1,4 @@
-"""Combine this machine with a compatible, separately obtained Morph SDK bundle."""
+"""Package Morph and its SDK integration for a compatible machine manager."""
 import argparse
 import hashlib
 import json
@@ -7,36 +7,52 @@ from pathlib import Path
 import tempfile
 import zipfile
 
-parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('base', type=Path)
-parser.add_argument('out', type=Path)
-args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
-if args.out.exists():
-    parser.error('Choose a new output filename')
-with zipfile.ZipFile(args.base) as base:
-    manifest = json.loads(base.read('machine-bundle.json'))
-    if (manifest['id'], manifest['machine'], manifest['sdkCommit']) != (
-            'morphcapture', 'morphcapture', 'a07b08faeb58cc7e74cdbc8bd98f809a8ffd5159'):
-        parser.error('Expected the compatible gui2d16 Morph Manager bundle')
-    patches = manifest['patches']
-    digest = 'd6ce688c4bb36e4826dcdb306f57f34c949317e89dd9e026e3fb708db85bf50f'
-    if patches != [{'path': 'morph-trine-sdk.patch', 'sha256': digest}]:
-        parser.error('Unexpected Morph SDK integration')
-    patch = base.read(patches[0]['path'])
-    if hashlib.sha256(patch).hexdigest() != digest:
-        parser.error('SDK integration differs from its pinned digest')
-    manifest['name'] = 'Morph-gui2d16-Trine-HUD'
-    with tempfile.NamedTemporaryFile(dir=args.out.parent) as tmp:
-        with zipfile.ZipFile(tmp, 'w', compression=zipfile.ZIP_DEFLATED) as out:
-            out.writestr('machine-bundle.json', json.dumps(manifest, indent=2)+'\n')
-            out.writestr(patches[0]['path'], patch)
-            for name in ('MORPH-LICENSE','OPEN-XY-LICENSE'):
-                out.writestr(name, base.read(name))
-            machine = root / 'machine/morphcapture'
-            for path in sorted(machine.rglob('*')):
-                if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc':
-                    out.write(path, path.relative_to(machine.parent))
-        tmp.flush()
-        os.link(tmp.name, args.out)
-print(args.out)
+parser = argparse.ArgumentParser(description=__doc__)
+default = root / 'release/Morph_gui2d16_Trine_HUD_Bundle.zip'
+parser.add_argument('output', nargs='?', type=Path, default=default)
+# Older scripts supplied a base bundle followed by an output path.
+parser.add_argument('legacy_output', nargs='?', type=Path, help=argparse.SUPPRESS)
+parser.add_argument('--check', action='store_true')
+args = parser.parse_args()
+out = args.legacy_output or args.output
+manifest = json.loads((root/'machine-bundle.json').read_bytes())
+files = {'machine-bundle.json': (root/'machine-bundle.json').read_bytes()}
+machine = root / manifest['machine']
+for p in sorted(machine.rglob('*')):
+    if p.is_file() and not any(s.startswith('.') or s=='__pycache__' for s in p.relative_to(machine).parts) and p.suffix!='.pyc':
+        files[p.relative_to(root).as_posix()] = p.read_bytes()
+for entry in manifest['patches']:
+    data = (root/entry['path']).read_bytes()
+    if hashlib.sha256(data).hexdigest() != entry['sha256']:
+        parser.error('SDK patch differs from its manifest: '+entry['path'])
+    files[entry['path']] = data
+for name in ('MORPH-LICENSE','OPEN-XY-LICENSE'):
+    files[name] = (root/'LICENSES'/name).read_bytes()
+if args.legacy_output:
+    with zipfile.ZipFile(args.output) as base:
+        spec = json.loads(base.read('machine-bundle.json'))
+        if (spec['id'],spec['sdkCommit']) != (manifest['id'],manifest['sdkCommit']) or [
+            hashlib.sha256(base.read(p['path'])).hexdigest() for p in spec['patches']
+        ] != [p['sha256'] for p in manifest['patches']]:
+            parser.error('Incompatible base bundle')
+if args.check:
+    with zipfile.ZipFile(out) as z:
+        if sorted(z.namelist()) != sorted(files) or any(z.read(n)!=data for n,data in files.items()):
+            parser.error('Build bundle differs from the checkout')
+else:
+    if out.exists() and out.resolve()!=default.resolve():
+        parser.error('Choose a new output filename')
+    out.parent.mkdir(parents=True,exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=out.parent) as temp:
+        tmp = Path(temp)/'bundle.zip'
+        with zipfile.ZipFile(tmp,'w') as z:
+            for name,data in sorted(files.items()):
+                entry = zipfile.ZipInfo(name)
+                entry.external_attr = 0o100644 << 16
+                z.writestr(entry,data,compress_type=zipfile.ZIP_DEFLATED)
+        if out.resolve()==default.resolve():
+            os.replace(tmp,out)
+        else:
+            os.link(tmp,out)
+print(out)
