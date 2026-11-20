@@ -1,13 +1,13 @@
 diff --git a/builder/core.mjs b/builder/core.mjs
-index a6c8715..792bf2b 100644
+index 739cb31..592d678 100644
 --- a/builder/core.mjs
 +++ b/builder/core.mjs
 @@ -10,7 +10,7 @@ export const selectArtwork = Graphics.selectArtwork;
  // The init preset's authored settings, shared with tooling.adapters.default_preset
  // (write_builder inlines this same file's content for the offline export).
  import DEFAULT_PRESET_TEMPLATE from '../tooling/default_preset.json' with { type: 'json' };
--export const PROFILE_SHA256 = '1f027443a1407cd693aed05cf36429b5776a39def3a45e5a57a9ee95851bcaa7';
-+export const PROFILE_SHA256 = '2572c9589559600e096a88eca74f5058900c204a765d81c215c19af2ca343eb3';
+-export const PROFILE_SHA256 = '6bd2a299b7490b01657119315361974ea317c80bcac99c088525b08ff3303181';
++export const PROFILE_SHA256 = 'c7ae53f73d943f8b57098761434b44027ad1bde3d982c99198e71a5b17a22b12';
  export function requireThat(ok, message) { if (!ok) throw new Error(message); }
  const check = requireThat;
  const utf8 = new TextEncoder();
@@ -100,10 +100,10 @@ index 0000000..8572da4
 +release verification, device regression and CPU profiling for this branch remain
 +pending. This proposal does not claim catalog readiness.
 diff --git a/profiles/opxy-1.2.1.json b/profiles/opxy-1.2.1.json
-index 88f00b5..9be398d 100644
+index b6c1de4..54659ea 100644
 --- a/profiles/opxy-1.2.1.json
 +++ b/profiles/opxy-1.2.1.json
-@@ -2487,6 +2487,28 @@
+@@ -2500,6 +2500,28 @@
        "symbol": "sdk_drumline_page_hook",
        "call": true,
        "service": "drumline"
@@ -2242,10 +2242,10 @@ index b205b7c..dc04e88 100644
                            'sdk_project_clear_random'])
          # Aux tracks are a service of their own: its hooks and MTP allowlist edits.
 diff --git a/tooling/adapters.py b/tooling/adapters.py
-index f60855b..d61421d 100644
+index 2fcc449..c9064bc 100644
 --- a/tooling/adapters.py
 +++ b/tooling/adapters.py
-@@ -333,6 +333,10 @@ extern "C" unsigned {prefix}_display_validate(const Frame* frame) {{
+@@ -350,6 +350,10 @@ extern "C" unsigned {prefix}_display_validate(const Frame* frame) {{
  
  def generate_registration(directory, m):
      """A machine's stock record (and own screen) for the SDK's checked registration."""
@@ -2291,7 +2291,7 @@ index 0000000..fab385e
 +    require(any(0x8d581a74 <= a < 0x8d581d48 for a in addresses), 'Pattern paste copy not identified')
 +    (sdk / 'm3-copy-sites.json').write_text(json.dumps(sites))
 diff --git a/tooling/native.py b/tooling/native.py
-index 9baebf4..3db714c 100644
+index 8c98c79..c09f885 100644
 --- a/tooling/native.py
 +++ b/tooling/native.py
 @@ -19,7 +19,7 @@ import tempfile

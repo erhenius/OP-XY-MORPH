@@ -1,6 +1,6 @@
-# Morph gui2d20 for TE Builder
+# Morph gui2d22 for TE Builder
 
-Import this ZIP using File → Import Machine ZIP. Select Morph-gui2d20 in Available, queue the update, then build and stage on the selected XY. The bundle includes the matching SDK additions.
+Import this ZIP using File → Import Machine ZIP. Select Morph-gui2d22 in Available, queue the update, then build and stage on the selected XY. The bundle includes the matching SDK additions.
 
 Open Morph AUX M2. Hold Shift to see a phrase symbol inside each routing tile. A white tile gets a black symbol and a black tile gets a white symbol. Turn K1–K4 to edit the highlighted bank. Click any encoder to switch banks. Release Shift to see and edit routing again.
 

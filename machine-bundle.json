@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "name": "Morph-gui2d16-Trine-HUD",
+  "name": "Morph-gui2d22",
   "id": "morphcapture",
   "mode": "combined",
-  "sdkCommit": "a07b08faeb58cc7e74cdbc8bd98f809a8ffd5159",
+  "sdkCommit": "28dd1a2e36599108c5eecf1a03f3b28601e50b39",
   "machine": "machine/morphcapture",
   "layout": {
     "engine": 57,
@@ -18,7 +18,16 @@
   "patches": [
     {
       "path": "integration/morph-trine-sdk.patch",
-      "sha256": "d6ce688c4bb36e4826dcdb306f57f34c949317e89dd9e026e3fb708db85bf50f"
+      "sha256": "ebfb176d7e8acea7706e5c8cc78e511d590dac8b0040ff7906ffe695de0907c0"
+    },
+    {
+      "path": "integration/morph-held-phrase-sdk.patch",
+      "sha256": "b0ffe344c2620f1a8f402e9f2adfa5e240f3605f58a6b930123e685fb43c8110"
+    },
+    {
+      "path": "integration/target-runtime.patch",
+      "sha256": "602f048bc12f9ed026dbc94294455381a68b0ab0ed096d6a226bab9ff99de536"
     }
-  ]
+  ],
+  "repository": "https://github.com/erhenius/OP-XY-MORPH"
 }

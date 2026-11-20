@@ -36,3 +36,17 @@ Host renders are illustrative, with a substitute font, not hardware screenshots.
 ## Trine HUD
 
 The owner confirmed the A/B graphs on hardware. The host GUI fixture passes 12,610 checks. With Trine selected, holding Instrument can briefly flash an “unknown” low-pass visual. This remains a minor open display bug.
+
+## gui2d21 and Open-XY v0.0.7
+
+The candidate keeps the gui2d20 runtime source. The exact tag and both SDK patches are bound by the import manifest. Verified against a fresh SDK prepared from the ZIPs through TE Builder 0.5.6.
+
+- 15,063 GUI invariants and 7,631 controller/compositor integration checks passed, including the held-Shift phrase overlay and Trine A/B curves.
+- Host validation passed for the Morph and Trine source bundles individually and together at both memory reservations. Git and ZIP source inputs produced the same build-review fingerprint.
+- The BF707 build, measured allocations and device behavior await the Mac and OP-XY test. The hardware-tested fallback is gui2d20 with the original SDK pin.
+
+## gui2d22 package
+
+The unchanged gui2d20 machine code is packaged with all SDK patches for TE Builder 0.5.4. Trine’s companion bundle supplies dynamic display-page allocation and step-lock integration.
+
+The owner confirmed Morph gui2d22 and Trine sdk-v0.0.7-rc2 work together on OP-XY hardware, built with TE Builder 0.5.4 and Open-XY v0.0.7, with no regressions observed. Extended musical evaluation of the phrases remains open.

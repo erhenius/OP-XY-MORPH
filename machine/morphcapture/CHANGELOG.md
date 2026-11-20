@@ -1,3 +1,11 @@
+## 1.3.1-dev-gui2d22 — self-contained Open-XY v0.0.7 bundle
+
+Carry the pinned arithmetic runtime integration in the bundle so TE Builder 0.5.4 can apply it through its existing recipe support.
+
+## 1.3.1-dev-gui2d21 — Open-XY v0.0.7 candidate
+
+Port the SDK integration and retain the gui2d20 renderer, phrase controls and saved settings.
+
 # gui2d20
 
 Restore the model-specific Trine curve on the instrument M3 HUD for each A/B scene.

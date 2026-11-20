@@ -1,0 +1,77 @@
+diff --git a/sdk/include/opxy/morph_aux_events.hpp b/sdk/include/opxy/morph_aux_events.hpp
+index 1c57a8e..06d66af 100644
+--- a/sdk/include/opxy/morph_aux_events.hpp
++++ b/sdk/include/opxy/morph_aux_events.hpp
+@@ -7,18 +7,26 @@ namespace opxy { namespace platform {
+ struct MorphAuxEvents {
+     u32 clicks;
+     i32 turns[4];
+-    void clear() { clicks = 0; for (u32 i=0; i<4; ++i) turns[i]=0; }
++    i32 plain[4], modified[4];
++    void clear() { clicks=0; for (u32 i=0;i<4;++i) turns[i]=plain[i]=modified[i]=0; }
+     void click(u32 index) { if (index<4) clicks |= 1u << index; }
+     // Clamp each pending raw detent sum to 16-bit signed. Never overflow i32.
+-    void turn(u32 index, i32 delta) {
+-        if (index>=4) return;
++    static void add(i32& value, i32 delta) {
+         const i32 safe = delta>32767 ? 32767 : delta < -32768 ? -32768 : delta;
+-        const i32 sum = turns[index]+safe;
+-        turns[index] = sum > 32767 ? 32767 : sum < -32768 ? -32768 : sum;
++        const i32 sum = value+safe;
++        value = sum > 32767 ? 32767 : sum < -32768 ? -32768 : sum;
++    }
++    void turn(u32 index, i32 delta, bool shift=false) {
++        if (index>=4) return;
++        add(turns[index],delta);
++        add(shift ? modified[index] : plain[index],delta);
+     }
+-    void take(u32* out_clicks, i32* out_turns) {
++    void take(u32* out_clicks, i32* out_turns, i32* phrase_turns=nullptr) {
+         if (out_clicks) *out_clicks=clicks;
+-        if (out_turns) for (u32 i=0;i<4;++i) out_turns[i]=turns[i];
++        for (u32 i=0;i<4;++i) {
++            if (out_turns) out_turns[i]=phrase_turns ? plain[i] : turns[i];
++            if (phrase_turns) phrase_turns[i]=modified[i];
++        }
+         clear();
+     }
+ };
+@@ -26,3 +34,5 @@ struct MorphAuxEvents {
+ 
+ // Consumer runs on Morph's GUI control tick; read-and-clear, no stock writes.
+ extern "C" void sdk_morph_aux_events_take(opxy::u32 track, opxy::u32* clicks, opxy::i32* turns);
++
++extern "C" void sdk_morph_aux_layer_take(opxy::u32 track, opxy::u32* clicks, opxy::i32* turns, opxy::i32* phrase_turns);
+diff --git a/sdk/platform/opxy-1.2.1/aux_tracks.cpp b/sdk/platform/opxy-1.2.1/aux_tracks.cpp
+index bfc3a15..b30de0f 100644
+--- a/sdk/platform/opxy-1.2.1/aux_tracks.cpp
++++ b/sdk/platform/opxy-1.2.1/aux_tracks.cpp
+@@ -608,7 +608,7 @@ u32 sdk_aux_turn(u32, u32 encoder, u32 event) {
+         const ControlMachine* owner = holder(track);
+         if (morph_owns_m1(owner, track)) {
+             // Raw signed detents, independent from stock's clamped parameter.
+-            if (event) morph_events.turn(encoder % 4, reinterpret_cast<const i32*>(event)[0]);
++            if (event) morph_events.turn(encoder % 4, reinterpret_cast<const i32*>(event)[0], shift_held());
+             // Preserve Morph V1's exact no-stock-editor guard on AUX M1.
+             return 1;
+         }
+@@ -618,12 +618,17 @@ u32 sdk_aux_turn(u32, u32 encoder, u32 event) {
+ }
+ 
+ // PRIVATE BRIDGE: read and clear one GUI frame's Morph-only gestures.
+-extern "C" void sdk_morph_aux_events_take(opxy::u32 track, opxy::u32* clicks, opxy::i32* turns) {
++extern "C" void sdk_morph_aux_layer_take(opxy::u32 track, opxy::u32* clicks, opxy::i32* turns, opxy::i32* phrase_turns) {
+     if (clicks) *clicks = 0u;
+     if (turns) for (u32 i=0;i<4u;++i) turns[i]=0;
++    if (phrase_turns) for (u32 i=0;i<4u;++i) phrase_turns[i]=0;
+     const ControlMachine* owner = holder(track);
+     if (!morph_owns_m1(owner,track)) { morph_events.clear(); return; }
+-    morph_events.take(clicks,turns);
++    morph_events.take(clicks,turns,phrase_turns);
++}
++
++extern "C" void sdk_morph_aux_events_take(opxy::u32 track, opxy::u32* clicks, opxy::i32* turns) {
++    sdk_morph_aux_layer_take(track,clicks,turns,nullptr);
+ }
+ 
+ // 8d53d2a0: the name of the aux LFO's engine destination `slot` (0..3, the

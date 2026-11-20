@@ -9,7 +9,7 @@ import zipfile
 
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
-default = root / 'release/Morph_gui2d16_Trine_HUD_Bundle.zip'
+default = root / 'release/Morph_gui2d22_Native.zip'
 parser.add_argument('output', nargs='?', type=Path, default=default)
 # Older scripts supplied a base bundle followed by an output path.
 parser.add_argument('legacy_output', nargs='?', type=Path, help=argparse.SUPPRESS)
@@ -17,7 +17,8 @@ parser.add_argument('--check', action='store_true')
 args = parser.parse_args()
 out = args.legacy_output or args.output
 manifest = json.loads((root/'machine-bundle.json').read_bytes())
-files = {'machine-bundle.json': (root/'machine-bundle.json').read_bytes()}
+files = {'machine-bundle.json': (root/'machine-bundle.json').read_bytes(),
+         'Morph-Quick-Reference.pdf': (root/'docs/Morph-Quick-Reference.pdf').read_bytes()}
 machine = root / manifest['machine']
 for p in sorted(machine.rglob('*')):
     if p.is_file() and not any(s.startswith('.') or s=='__pycache__' for s in p.relative_to(machine).parts) and p.suffix!='.pyc':

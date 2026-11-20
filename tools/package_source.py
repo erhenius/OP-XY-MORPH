@@ -11,7 +11,7 @@ machine = root / 'machine/morphcapture'
 files = {f'{machine.name}/{p.relative_to(machine).as_posix()}': p.read_bytes()
          for p in machine.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc'}
 files['Morph-Quick-Reference.pdf'] = (root / 'docs/Morph-Quick-Reference.pdf').read_bytes()
-archive = root / 'release/Morph_gui2d16_Source.zip'
+archive = root / 'release/Morph_gui2d22_Source.zip'
 if args.check:
     with zipfile.ZipFile(archive) as z:
         if sorted(z.namelist()) != sorted(files) or any(z.read(n) != data for n, data in files.items()):

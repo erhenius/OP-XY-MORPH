@@ -14,7 +14,7 @@ Morph is a custom OP-XY machine that captures **A and B scenes across all eight 
 
 AUX is Morph's home for capture, routing, pad settings and presets. Hold a selected instrument track to open its **Morph HUD**, where you can inspect and edit the captured scenes beside the sound controls.
 
-**Source version** `1.3.1-dev-gui2d16` · **Firmware baseline** stock OS `1.2.1` with the supplied SDK integration.
+**Source version** `1.3.1-dev-gui2d22` · **Open-XY SDK** `v0.0.7` · **Firmware baseline** stock OS `1.2.1` with the supplied SDK integration.
 
 ## Read the circles
 
@@ -78,13 +78,13 @@ Press **K3** on AUX M1 to explicitly set S. S follows stored instrument settings
 | **Recording** | While playing, hold RECORD and turn AUX M1 K4. Only this physical AUX encoder movement is recorded as Morph automation. |
 | **Erase automation** | Hold BAR, then press M2 on Morph AUX. This clears all parameter locks in that AUX pattern, retaining notes and other tracks. |
 | **A/B presets** | On AUX M3, turn K4 to select 01–16. Press K3 to load or K4 to save over the selected slot. Both require BYPASS and allow playback to continue. Presets exclude S. |
-| **Project persistence** | Keep the `.xy` project and its `.oxy` companion together. The companion stores Morph snapshots, pad and HUD settings, and the recording origin. gui2d16 writes companion version 7 and can load versions 1–7. Keep a copy of the original companion if you plan to roll back. |
+| **Project persistence** | Keep the `.xy` project and its `.oxy` companion together. The companion stores Morph snapshots, pad and HUD settings, and the recording origin. gui2d22 retains the gui2d20 companion format. Keep a copy of the original companion if you plan to roll back. |
 
 Manual BYPASS stays bypassed when the LFO or recorded movement continues. Excluded tracks stay at their current sound, including when returning to S. See the [illustrated guide](docs/Morph-Quick-Reference.pdf) for source takeover, captures, SHIFT chords, preset compatibility and the full gesture reference.
 
 ## Install or update
 
-Download the [Morph build bundle](release/Morph_gui2d16_Trine_HUD_Bundle.zip) and choose **File → Import Machine ZIP…** in TE Builder. The bundle includes the current machine source and its Morph SDK integration. The manifest pins the compatible Open-XY revision. See [Installation](docs/INSTALLATION.md) for SDK setup and packaging instructions. The [machine-only source ZIP](release/Morph_gui2d16_Source.zip) is also available.
+Download the [Morph build bundle](release/Morph_gui2d22_Native.zip) and choose **File → Import Machine ZIP…** in TE Builder. The bundle includes the current machine source and its Morph SDK integration. The manifest pins the compatible Open-XY revision. See [Installation](docs/INSTALLATION.md) for SDK setup and packaging instructions. The [machine-only source ZIP](release/Morph_gui2d22_Source.zip) is also available.
 
 ## Development
 

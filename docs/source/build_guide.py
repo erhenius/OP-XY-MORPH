@@ -10,7 +10,7 @@ R=Path(__file__).resolve().parent; A=R/'assets'; OUT=R.parent/'Morph-Quick-Refer
 pdfmetrics.registerFont(TTFont('LS','/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'))
 pdfmetrics.registerFont(TTFont('LSB','/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'))
 W,H=842,595;BG='#121011';FG='#eeeeee';MUT='#b3b3b5';LINE='#454347'
-c=canvas.Canvas(str(OUT),pagesize=(W,H));c.setTitle('Morph / Screens & Gestures - gui2d16');c.setAuthor('OP-XY CFW DEV')
+c=canvas.Canvas(str(OUT),pagesize=(W,H));c.setTitle('Morph / Screens & Gestures - gui2d22');c.setAuthor('OP-XY CFW DEV')
 page=0; records=[]
 def text(x,y,s,size=11,bold=False,color=FG):
  c.setFillColor(HexColor(color));c.setFont('LSB' if bold else 'LS',size);c.drawString(x,H-y-size*.82,s);records.append(s)
@@ -24,8 +24,8 @@ def start(title,sub):
  page+=1;c.setFillColor(HexColor(BG));c.rect(0,0,W,H,fill=1,stroke=0)
  text(34,24,'MORPH / SCREENS & GESTURES',9,True,MUT);text(34,49,title,29,True);para(34,88,774,sub,11);line(34,112,808,112)
 def end():
- line(34,559,808,559);text(34,573,'GUI2D16  /  Independent OP-XY reference  /  17 November 2026',8,color=MUT)
- text(770,573,f'{page:02d} / 12',8,color=MUT);c.showPage()
+ line(34,559,808,559);text(34,573,'GUI2D19  /  Independent OP-XY reference  /  20 November 2026',8,color=MUT)
+ text(770,573,f'{page:02d} / 13',8,color=MUT);c.showPage()
 def screen(name,x,y,w,caption=None):
  h=w*220/480;c.drawImage(str(A/(name+'.png')),x,H-y-h,width=w,height=h)
  c.setStrokeColor(HexColor(LINE));c.rect(x,H-y-h,w,h,fill=0,stroke=1)
@@ -79,6 +79,20 @@ screen('aux2_bank',34,338,350,'M2 / bank for tracks 5-8. Switching banks does no
 for y,args in zip([135,217,299,381],[(['M2'],'press','Open routing','Eight columns represent the instrument tracks.'),(['K1'],'turn K1-K4','Enable / exclude','Turn the corresponding encoder right for ON, left for OFF.'),(['K1'],'press any encoder','Switch 1-4 / 5-8','The four shaded headers identify the current bank.'),(['M4'],'press','Open the stock LFO','Choose Morph, the fourth machine control, as destination. Use the stock waveform, rate and amount controls.')]):gesture(424,y,384,*args)
 para(424,479,384,'LFO movement requires LIVE. Manual BYPASS stays bypassed. Start with slow modulation; fast modulation may sound stepped.',10,FG)
 end()
+start('AUX M2 / hold Shift','On the AUX M2 routing page, hold Shift to see the eight phrase symbols. K1–K4 edit the highlighted bank.')
+screen('aux_phrase',34,135,350,'Tracks 1–4 show Linear, Push, Pull and Stagger. Track 5 shows Accent. A dark tile means its route is off.')
+screen('aux_phrase_bank',34,338,350,'Click any encoder to select tracks 5–8. Turn in either direction to cycle through all five symbols. Release Shift to return to routing.')
+for y,(name,description) in zip([139,207,275,343,411],[
+ ('Linear','The track follows sweep travel. This is the starting setting.'),
+ ('Push','Moves early. At half travel from the center, the track is 65% of the way to the scene.'),
+ ('Pull','Moves late. At half travel from the center, the track is 35% of the way to the scene.'),
+ ('Stagger','The filter controls lead and the sends follow late. The envelopes follow sweep travel.'),
+ ('Accent','The Tape send swells midway to the scene. Try it with audible tape processing.'),
+ ]):
+ text(424,y,name,13,True)
+ para(424,y+22,384,description,10)
+para(424,491,384,'Every phrase reaches the exact center and endpoints. Projects remember your choices. A/B preset slots carry the captured scenes.',10,FG)
+end()
 start('M3 / sweep sensitivity & presets','Set pad and HUD encoder sensitivity independently. Enable LIVE before using the pad.')
 screen('aux3',34,135,350,'Light Touch curve. Pad sensitivity is +200% on the horizontal axis and held-K4 sensitivity is +300% on the vertical axis.')
 card(34,333,350,115,'Press, travel, release','Down/left moves toward A; up/right toward B. More pressure gives faster travel. Release holds position. The pad never enables LIVE itself.')
@@ -98,7 +112,7 @@ para(424,458,384,'Saving replaces the selected slot immediately. Check its numbe
 end()
 
 start('Instrument HUD / screen catalogue','Hold the selected instrument track for 150 ms. Release to leave, unless the HUD is latched.')
-for x,name,caption in [(34,'hud1','M1 / instrument parameters and A-S-B rows'),(298,'hud2','M2 / AMP left, FILTER right; A above B'),(562,'hud3','M3 / filter model and A/B response outlines')]:screen(name,x,135,246,caption)
+for x,name,caption in [(34,'hud1','M1 / instrument parameters and A-S-B rows'),(298,'hud2','M2 / AMP left, FILTER right; A above B'),(562,'hud3_trine','M3 / Trine: band-pass in A, high-pass in B')]:screen(name,x,135,246,caption)
 card(34,290,246,129,'A / B','Filled circle = A; outline = B. Red values or curves identify the scene being edited. In M2, only the selected scene/envelope is red.')
 card(298,290,246,129,'S / return sound','M1 shows the stored return values in its S row. S follows stored instrument settings in BYPASS; LIVE freezes it except explicit SET S.')
 card(562,290,246,129,'Movement','The right-hand sweep is vertical: A above, B below. Its square tracks travel. The centre is the movement origin, not necessarily S.')
@@ -118,7 +132,7 @@ para(298,317,246,'SHIFT tables show the current value, then A and B. Red marks t
 para(298,391,246,'On M2 SHIFT, Morph edits glide with K2 and preset level with K4. Play mode and bend range are current-only readouts.',11)
 para(298,478,246,'Engine-specific M1 SHIFT fields remain read-only in the HUD.',10)
 text(562,292,'OTHER FILTER MODELS',9,True,MUT)
-para(562,317,246,'Low-pass and high-pass use their respective outlines. Cutoff and resonance values move with their graphical controls; the side values are envelope amount and key tracking.',11)
+para(562,317,246,'Trine shows each scene’s Sweep, Resonance and Shape. Shape moves from low-pass through band-pass to high-pass. Decay appears as Off or a time in ms.',11)
 para(562,414,246,'M3 SHIFT edits the four send levels for the selected A/B scene. Use BYPASS for snapshot edits.',11)
 para(562,478,246,'Hold the instrument track first, then SHIFT, before using Morph SHIFT gestures.',10,FG)
 end()
@@ -162,11 +176,11 @@ text(424,455,'WHICH SOURCE WINS?',9,True,MUT)
 para(424,480,384,'Physical movement or a new CC15 message can take over the pad. Pad/MIDI takeover holds off LFO and recorded movement. Manual BYPASS stays bypassed.',10)
 end()
 start('Keep your setup / projects & Manager','Save sounds and keep a known working setup before changing the installed instruments.')
-card(34,135,350,128,'Project + companion','Keep project.xy and its .oxy companion together. The companion preserves Morph snapshots, pad and HUD sensitivity settings, and the recording origin. Enable LIVE manually after loading.')
+card(34,135,350,128,'Project + companion','Keep project.xy and its .oxy companion together. The companion preserves Morph snapshots, pad and HUD sensitivity settings, the recording origin and phrase assignments. Enable LIVE manually after loading.')
 card(34,287,350,128,'Keep rollback copies','Retain original projects and companions when updating. Older releases may reject newer saved banks. A/B presets store settings; keep the required instruments and samples too.')
-para(34,444,350,'Guide edition: gui2d16. Screen examples come from the current renderer with illustrative values and a substitute preview font. General screen examples show the midpoint; the sweep page shows several positions.',10)
+para(34,444,350,'Guide edition: gui2d22. Screen examples come from the current renderer with illustrative values and a substitute preview font. General screen examples show the midpoint; the sweep page shows several positions.',10)
 text(424,139,'UPDATE MORPH',9,True,MUT)
-para(424,164,384,'In Manager, import the new Morph source and select Replace installed Morph. Use the compatible SDK edition, select the correct device profile and scan its installed setup. Build and review before staging.',11)
+para(424,164,384,'In TE Builder, import the native Morph ZIP under File. Select the receiving XY and choose gui2d22 in Available. Queue the update, build, then stage the reviewed package.',11)
 text(424,278,'REMOVE A MACHINE',9,True,MUT)
 para(424,303,384,'Select its row in Installed setup, then Remove selected installed machines. Keep selected installed machines reverses the selection; Clear changes cancels pending edits.',11)
 para(424,386,384,'Calculate, build and review before staging. Projects and presets remain, but projects using a removed machine need it reinstalled.',11)

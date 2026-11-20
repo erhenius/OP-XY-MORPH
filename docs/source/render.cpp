@@ -20,10 +20,18 @@ int main(){
  in.track=11;words[8]=7<<4;words[5]=0x55;words[3]=16;words[2]=0;
  words[4]=1;display(state,in,f);output("aux1_live",f);words[3]=0;display(state,in,f);output("aux1_bypass",f);
  words[4]=2;words[6]=0;display(state,in,f);output("aux2",f);words[6]=1;display(state,in,f);output("aux2_bank",f);
+ words[4]=phrases::display_page;
+ words[phrases::display_map_word]=(1<<3)|(2<<6)|(3<<9)|(4<<12)|(1<<18)|(3<<21);
+ words[6]=0;display(state,in,f);output("aux_phrase",f);
+ words[6]=1;display(state,in,f);output("aux_phrase_bank",f);
  words[4]=3;words[7]=1|(290<<8)|(79<<20);display(state,in,f);output("aux3",f);
  words[7]=1|(0<<8)|(2<<17);words[3]=16;display(state,in,f);output("aux3_live",f);
  in.track=0;for(u32 page=0;page<3;++page){scene.module=page;scene.filter_type=9;scene.shifted=0;display(state,in,f);char name[12];std::sprintf(name,"hud%u",page+1);output(name,f);}
  scene.filter_type=17;display(state,in,f);output("hud3_hp",f);scene.filter_type=18;display(state,in,f);output("hud3_dynamic",f);
+
+ scene.filter_type=11;scene.a[14]=scene.b[14]=0x40000000;scene.a[15]=scene.b[15]=0x40000000;
+ scene.a[16]=0x40000000;scene.b[16]=0x7fffffff;scene.a[17]=0;scene.b[17]=0x7fffffff;
+ display(state,in,f);output("hud3_trine",f);
  scene.shifted=1;for(u32 page=1;page<3;++page){scene.module=page;display(state,in,f);char name[14];std::sprintf(name,"hud%u_shift",page+1);output(name,f);}
  in.track=11;words[4]=1;words[3]=16;
  for(int i=0;i<5;++i){words[2]=-64+i*32;display(state,in,f);char name[24];std::sprintf(name,"sweep_%d",i);output(name,f);}
