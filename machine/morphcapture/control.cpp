@@ -12,6 +12,7 @@
 #include "morph_menu_delay.hpp"
 #include <opxy/morph_midi_input.hpp>
 #include "morph_logic.hpp" // exact V1 Q31 math, no 64-bit linker helper
+#include "morph_phrases.hpp"
 #include <opxy/morph_hud_contract.hpp>
 #include <opxy/morph_hud_snapshot.hpp>
 #include <opxy/morph_hud_slot_map.hpp>
@@ -35,7 +36,7 @@ namespace morphcapture {
 using opxy::u32; using opxy::i32;
 namespace ctrl=opxy::control;
 
-const u32 kTracks=8u, kParams=34u, kFull=64u;
+const u32 kTracks=8u, kParams=34u, kFull=phrases::full;
 const u32 slots[kParams]={0u,1u,2u,3u,4u,5u,6u,7u,8u,9u,10u,11u,
  13u,15u,16u,17u,18u,19u,20u,21u,22u,23u,32u,33u,34u,35u,64u,65u,66u,67u,68u,69u,70u,71u};
 static_assert(kParams*kTracks==272u,"unexpected V1 scene width");
@@ -50,6 +51,9 @@ struct ControlState {
  u32 base_ready;
  u32 origin_ready;
  u32 mode;                    // 0 BYPASS, 1 LIVE
+ u32 phrase_map;
+ u32 transaction_phrases;
+ phrases::Weights transaction_weights;
  i32 transaction_travel; // Target for the current send and both readback passes.
  i32 travel;                 // -64=A, 0=origin, +64=B
  u32 edit_side;               // 0=A 1=B
@@ -206,6 +210,7 @@ static bool recorded_reference=false, transport_playing=false;
 static opxy::morphport::ShiftSchema restored_schema[8]={};
 static u32 restored_patterns[10]={};
 static bool restored_pending=false;
+static u32 restored_phrases=0u;
 inline bool restore_context_matches() {
  opxy::morphport::ShiftSchema schemas[8]={};u32 patterns[10]={};
  if(!sdk_morph_persist_identity(schemas,patterns))return false;
@@ -369,6 +374,8 @@ opxy::u32 hud_readonly_screen_route(opxy::u32 selected_page) {
 }
 void control_reset(ControlState& s) {
  s.transaction_travel=0;
+ s.phrase_map=s.transaction_phrases=restored_phrases=0u;
+ s.transaction_weights=phrases::Weights{};
  reset_follow();
  preset_panel=false;preset_status=preset_confirm_us=preset_partial=0u;ui_press_serial=0u;
  midi_input.reset();sdk_morph_midi_clear();
@@ -440,10 +447,13 @@ inline bool capture_startup(ControlState& s) {
  if(restored_pending) {
   restored_pending=false;
   if(restore_context_matches()) {
+   s.phrase_map=restored_phrases;
+   restored_phrases=0u;
    startup_captured=true;s.mode=0u;s.travel=0;s.phase=idle;s.fault=0u;
    return true;
   }
   recorded_reference=false;
+  restored_phrases=0u;
  }
  if(!read_all(candidate))return false;
  for(u32 t=0;t<kTracks;++t)for(u32 i=0;i<kParams;++i){
@@ -454,7 +464,10 @@ inline bool capture_startup(ControlState& s) {
  s.origin_ready=0u;s.mode=0u;s.travel=0;s.fault=0u;
  startup_captured=true;return true;
 }
-const u32 kSavedBytes=5684u;
+const u32 kLegacySavedBytes=5684u;
+const u32 kPhraseOffset=kLegacySavedBytes-4u;
+const u32 kSavedBytes=kLegacySavedBytes+4u;
+const u32 kSavedVersion=8u;
 inline void put32(opxy::u8* out,u32 value){for(u32 j=0;j<4u;++j)out[j]=static_cast<opxy::u8>(value>>(j*8u));}
 inline u32 get32(const opxy::u8* in){u32 value=0;for(u32 j=0;j<4u;++j)value|=static_cast<u32>(in[j])<<(j*8u);return value;}
 inline u32 saved_checksum(const opxy::u8* data,u32 count){u32 h=2166136261u;for(u32 i=0;i<count;++i)h=(h^data[i])*16777619u;return h;}
@@ -463,7 +476,7 @@ u32 control_save(const ControlState& s,opxy::u8* data,u32 capacity) {
     !sdk_morph_view_context_ok())return 0;
  opxy::morphport::ShiftSchema schema[8]={};u32 patterns[10]={};
  if(!sdk_morph_persist_identity(schema,patterns))return 0;
- put32(data,0x3233524du);put32(data+4,7u);put32(data+8,kSavedBytes);
+ put32(data,0x3233524du);put32(data+4,kSavedVersion);put32(data+8,kSavedBytes);
  put32(data+12,s.captured_mask[0]);put32(data+16,s.captured_mask[1]);
  put32(data+20,s.base_ready);put32(data+24,s.origin_ready);put32(data+28,(recorded_reference?1u:0u)|(static_cast<u32>(hud_gain_level)<<1u)|(s.active_tracks<<8u)|(pad_enabled?0x10000u:0u)|(static_cast<u32>(pad_sensitivity+90)<<17u)|(pad_curve<<26u));
  u32 at=32u;
@@ -477,27 +490,33 @@ u32 control_save(const ControlState& s,opxy::u8* data,u32 capacity) {
   const i32 v=bank<2?s.scene[bank][t][i]:bank==2?s.base[t][i]:bank==3?s.origin[t][i]:recorded_origin[t][i];
   put32(data+at,static_cast<u32>(v));at+=4u;
  }
- if(at!=kSavedBytes-4u || !sdk_morph_view_context_ok())return 0;
+ if(at!=kPhraseOffset || !sdk_morph_view_context_ok())return 0;
+ put32(data+at,s.phrase_map);at+=4u;
  put32(data+at,saved_checksum(data,at));return kSavedBytes;
 }
 void control_load(ControlState& s,const opxy::u8* data,u32 bytes) {
  control_reset(s);
- if(!data || bytes!=kSavedBytes || get32(data)!=0x3233524du || (get32(data+4)<1u || get32(data+4)>7u) ||
+ if(!data || (bytes!=kSavedBytes && bytes!=kLegacySavedBytes))return;
+ const u32 version=get32(data+4);
+ if(get32(data)!=0x3233524du || version<1u || version>kSavedVersion ||
+    bytes!=(version==kSavedVersion?kSavedBytes:kLegacySavedBytes) ||
     get32(data+8)!=bytes || get32(data+bytes-4u)!=saved_checksum(data,bytes-4u) ||
     get32(data+12)>255u || get32(data+16)>255u || get32(data+20)!=1u ||
     get32(data+24)>1u ||
     (get32(data+28)&(get32(data+4)==1u?~1u:get32(data+4)==2u?~0xff01u:get32(data+4)==3u?~0x1ff01u:get32(data+4)==4u?~0x1ffff01u:get32(data+4)==5u?~0x7ffff01u:get32(data+4)==6u?~0x7ffff7fu:~0xfffffffu)))return;
  if(get32(data+4)==4u && ((get32(data+28)>>17u)&255u)>180u)return;
  if(get32(data+4)==6u && ((get32(data+28)>>1u)&63u)>59u)return;
- const u32 version=get32(data+4),flags=get32(data+28);
- const u32 stored_pad=(flags>>17u)&(version==7u?511u:255u);
- const u32 stored_curve=(flags>>(version==7u?26u:25u))&3u;
- const u32 stored_hud=(flags>>1u)&(version==7u?127u:63u);
- if(version>=5u && (stored_pad>(version==7u?291u:191u) || stored_curve>2u))return;
- if(version==7u && stored_hud>static_cast<u32>(hud_max))return;
+ const u32 map=version==kSavedVersion?get32(data+kPhraseOffset):0u;
+ if(!phrases::valid(map))return;
+ const u32 flags=get32(data+28);
+ const u32 stored_pad=(flags>>17u)&(version>=7u?511u:255u);
+ const u32 stored_curve=(flags>>(version>=7u?26u:25u))&3u;
+ const u32 stored_hud=(flags>>1u)&(version>=7u?127u:63u);
+ if(version>=5u && (stored_pad>(version>=7u?291u:191u) || stored_curve>2u))return;
+ if(version>=7u && stored_hud>static_cast<u32>(hud_max))return;
  // Validate complete payload before publishing any snapshot value.
  const u32 values=240u;
- for(u32 at=values;at<bytes-4u;at+=4u)if(get32(data+at)>0x7fffffffu)return;
+ for(u32 at=values;at<kPhraseOffset;at+=4u)if(get32(data+at)>0x7fffffffu)return;
  u32 at=32u;
  for(u32 i=0;i<10u;++i){restored_patterns[i]=get32(data+at);at+=4u;}
  for(u32 t=0;t<8u;++t){
@@ -523,7 +542,8 @@ void control_load(ControlState& s,const opxy::u8* data,u32 bytes) {
  }
  s.captured_mask[0]=get32(data+12);s.captured_mask[1]=get32(data+16);
  s.base_ready=1u;s.origin_ready=get32(data+24);recorded_reference=(get32(data+28)&1u)!=0u;
- s.active_tracks=get32(data+4)==1u?255u:(get32(data+28)>>8u)&255u;restored_pending=true;
+ s.active_tracks=version==1u?255u:(flags>>8u)&255u;
+ restored_phrases=map;restored_pending=true;
  pad_enabled=get32(data+4)>=3u && (get32(data+28)&0x10000u);
  pad_sensitivity=version>=4u?static_cast<i32>(stored_pad)-90:0;
  if(version<=6u && pad_sensitivity==101)pad_sensitivity=201; // Previous Instant position.
@@ -594,17 +614,39 @@ inline i32 clamped_travel(i32 before,i32 steps) {
  if(steps< -4)steps=-4;
  i32 after=before+steps;return after>64?64:after< -64?-64:after;
 }
-inline i32 desired(const ControlState& s,u32 t,u32 i) {
- if(s.target_bypass)return s.base[t][i];
- if(!s.transaction_travel)return s.origin[t][i];
- const u32 side=s.transaction_travel>0?1u:0u;
- const u32 steps=static_cast<u32>(s.transaction_travel>0?s.transaction_travel:-s.transaction_travel);
- const u32 fraction=steps>=kFull?0x7fffffffu:(steps<<25u);
- return opxy::morph::interpolate(s.origin[t][i],s.scene[side][t][i],fraction);
+// Only the Accent send takes the second interpolation. Keep that seldom-used
+// path out of each send/readback loop's inlined copy of the standard calculation.
+static __attribute__((noinline)) i32 accent_send(i32 value,u32 swell) {
+ return opxy::morph::interpolate(value,static_cast<i32>(phrases::max_q31),swell);
 }
-inline void schedule(ControlState& s,bool bypass) {
+
+inline i32 desired(const ControlState& s,u32 track,u32 index,phrases::Mode phrase) {
+ if(s.target_bypass)return s.base[track][index];
+ if(!s.transaction_travel)return s.origin[track][index];
+ const u32 side=s.transaction_travel>0?1u:0u;
+ const i32 end=s.scene[side][track][index];
+ const auto& weights=s.transaction_weights;
+ const u32 slot=phrase==phrases::linear?0u:slots[index];
+ const u32 fraction=phrase==phrases::linear?weights.straight:phrases::fraction(weights,phrase,slot);
+ const i32 value=opxy::morph::interpolate(s.origin[track][index],end,fraction);
+ if(phrase==phrases::accent && slot==phrases::tape_send && weights.swell)
+  return accent_send(value,weights.swell);
+ return value;
+}
+
+inline bool phrase_target_changed(const ControlState& s) {
+ return s.transaction_phrases!=s.phrase_map && s.transaction_travel==s.travel &&
+        s.travel!=0 && s.travel<static_cast<i32>(kFull) && s.travel> -static_cast<i32>(kFull) &&
+        phrases::changed_on_routes(s.transaction_phrases,s.phrase_map,s.active_tracks);
+}
+
+// Freeze once per target. Keep setup out of the many movement call sites.
+static __attribute__((noinline)) void schedule(ControlState& s,bool bypass) {
  if(bypass){pad_input.reset(s.travel);movement_lane.bypass();midi_input.reset();sdk_morph_midi_clear();}
  s.transaction_travel=s.travel;
+ s.transaction_phrases=s.phrase_map;
+ const u32 steps=static_cast<u32>(s.travel<0?-s.travel:s.travel);
+ s.transaction_weights=phrases::weights(steps,!bypass && s.transaction_phrases!=0u);
  s.target_bypass=bypass?1u:0u;s.phase=sending;s.cursor=0u;s.fault=0u;
 }
 // At high routing counts another detent can arrive before the previous
@@ -645,8 +687,9 @@ inline void submit_tick(ControlState& s) {
   const u32 count=available<remaining?available:remaining;
   i32 actual[ctrl::store_capacity];
   if(!sdk_morph_stored_batch_read(t,slots+p,count,actual)){s.phase=failed;s.fault=1u;return;}
+  const auto phrase=phrases::get(s.transaction_phrases,t);
   for(u32 j=0;j<count;++j){
-   const i32 want=desired(s,t,p+j);
+   const i32 want=desired(s,t,p+j,phrase);
    if(actual[j]!=want && !sdk_morph_stored_once_submit(t,slots[p+j],want)){
     s.phase=failed;s.fault=2u;return;
    }
@@ -664,15 +707,16 @@ inline void verify_tick(ControlState& s) {
   const u32 count=available<remaining?available:remaining;
   i32 current[ctrl::store_capacity];
   if(!sdk_morph_stored_batch_read(t,slots+p,count,current)){s.fault=3u;s.phase=failed;return;}
+  const auto phrase=phrases::get(s.transaction_phrases,t);
   for(u32 j=0;j<count;++j){
-   if(current[j]!=desired(s,t,p+j)){s.fault=3u;s.phase=failed;return;}
+   if(current[j]!=desired(s,t,p+j,phrase)){s.fault=3u;s.phase=failed;return;}
    ++s.cursor;++checked;
   }
  }
  if(s.cursor==kTracks*kParams) {
   s.cursor=0u;
   if(s.phase==verify_first)s.phase=verify_second;
-  else if(!s.target_bypass && s.transaction_travel!=s.travel)schedule(s,false);
+  else if(!s.target_bypass && (s.transaction_travel!=s.travel || phrase_target_changed(s)))schedule(s,false);
   else {s.phase=idle;if(s.target_bypass){s.mode=0u;s.travel=0;s.origin_ready=0u;}}
  }
 }
@@ -813,7 +857,8 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
 
  transport_playing=in.transport.playing;
  u32 clicks=0; i32 turns[4]={0,0,0,0};
- sdk_morph_aux_events_take(in.track,&clicks,turns);
+ i32 phrase_turns[4]={};
+ sdk_morph_aux_layer_take(in.track,&clicks,turns,aux_page==2u?phrase_turns:nullptr);
  for(u32 k=0;k<4u;++k)if(clicks&(1u<<k)){
   const u32 shift=k*8u; const u32 next=((ui_press_serial>>shift)+1u)&255u;
   ui_press_serial=(ui_press_serial&~(255u<<shift))|(next<<shift);
@@ -824,11 +869,11 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  // different stock project, scene or instrument block generation.
  if(s.context_ready && !sdk_morph_session_context_ok()) {
   control_reset(s);s.fault=4u;
-  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=phrase_turns[k]=0;
  }
  // Runs independently of AUX selection; retry until a complete valid read.
  if(!in.muted && !startup_captured && !capture_startup(s)) {
-  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+  clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=phrase_turns[k]=0;
  }
  if(in.muted){pad_input.reset(s.travel);u32 discarded=0u;(void)sdk_morph_midi_take(&discarded);midi_input.ready=false;}
  const u32 scrambled=scramble_pending;
@@ -867,9 +912,10 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
   preset_confirm_us=in.elapsed_us>=preset_confirm_us?0u:preset_confirm_us-in.elapsed_us;
   if(!preset_confirm_us && preset_status==4u)preset_status=0u;
  }
- if(in.page_key>=1u && in.page_key<=4u){preset_panel=false;preset_confirm_us=0u;}
- if(in.page_key>=1u && in.page_key<=3u) {
-  aux_page=in.page_key;clicks=0u;for(u32 k=0;k<4u;++k)turns[k]=0;
+ if(in.page_key>=1u && in.page_key<=4u){
+  preset_panel=false;preset_confirm_us=0u;clicks=0u;
+  for(u32 k=0;k<4u;++k)turns[k]=phrase_turns[k]=0;
+  if(in.page_key<=3u)aux_page=in.page_key;
  }
  if(aux_page==3u) {
   const bool before=pad_enabled;
@@ -899,9 +945,11 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
  sdk_morph_pad_request(pad_enabled && s.context_ready && !scrambled);
  if(aux_page==2u) {
   const u32 before=s.active_tracks;
-  if(clicks){route_bank^=1u;for(u32 k=0;k<4u;++k)turns[k]=0;}
+  if(clicks){route_bank^=1u;for(u32 k=0;k<4u;++k)turns[k]=phrase_turns[k]=0;}
   for(u32 k=0;k<4u;++k){
-   const u32 bit=1u<<(route_bank*4u+k);
+   const u32 track=route_bank*4u+k;
+   if(phrase_turns[k])s.phrase_map=phrases::step(s.phrase_map,track,phrase_turns[k]);
+   const u32 bit=1u<<track;
    if(turns[k]>0)s.active_tracks|=bit;
    if(turns[k]<0)s.active_tracks&=~bit;
   }
@@ -990,16 +1038,18 @@ void control(ControlState& s,const ctrl::Input& in,ctrl::Overlay& out) {
    }
    s.travel=playback_travel;schedule(s,false);
   }
+  if(s.mode && s.phase==idle && phrase_target_changed(s))schedule(s,false);
   if(s.phase!=idle && s.phase!=failed && !in.muted) {
    if(!sdk_morph_session_context_ok()){s.phase=failed;s.fault=11u;}
    else if(s.phase==sending)submit_tick(s);
    else verify_tick(s);
   }
  }
+ out.display[phrases::display_map_word]=static_cast<i32>(s.phrase_map);
  out.display[9]=static_cast<i32>(ui_press_serial);
  out.display[8]=static_cast<i32>((preset_panel?1u:0u)|(preset_slot<<4u)|(preset_status<<8u)|(preset_partial<<16u));
  out.display[7]=(pad_enabled?1:0)|(sdk_morph_pad_waiting()?2:0)|((pad_sensitivity+90)<<8u)|(pad_curve<<17u)|(static_cast<u32>(hud_gain_level)<<20u);
- out.display[4]=static_cast<i32>(aux_page);
+ out.display[4]=static_cast<i32>(aux_page==2u && sdk_morph_gui_shift_held() ? phrases::display_page : aux_page);
  out.display[5]=static_cast<i32>(s.active_tracks);
  out.display[6]=static_cast<i32>(route_bank);
  out.display[0]=static_cast<i32>(s.captured_mask[0]);

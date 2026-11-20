@@ -12,8 +12,8 @@ int main(){
  Frame frame={};DisplayState state={};d::Input in={};in.elapsed=17;
  scene.abi=hud::kSnapshotABI;scene.captured_a=scene.captured_b=scene.start_ready=1;scene.m1.dual=1;
  for(u32 k=0;k<4;++k){scene.m1.primary[k]=k;scene.m1.alternate[k]=k+4;}
- const u32 types[6]={9,10,11,16,17,18};
- for(u32 type=0;type<6;++type)for(u32 mask=0;mask<16;++mask)for(u32 module=0;module<3;++module)for(u32 shift=0;shift<2;++shift)for(u32 side=0;side<2;++side){
+ const u32 types[]={9,10,11,16,17,18};
+ for(u32 type=0;type<sizeof(types)/sizeof(types[0]);++type)for(u32 mask=0;mask<16;++mask)for(u32 module=0;module<3;++module)for(u32 shift=0;shift<2;++shift)for(u32 side=0;side<2;++side){
   scene.filter_type=types[type];scene.module=module;scene.shifted=shift;scene.edit_side=side;scene.bank_focus=side;
   for(u32 k=0;k<26;++k){scene.a[k]=(mask&(1u<<(k%4)))?0x7fffffff:0;scene.b[k]=0x7fffffff-scene.a[k];scene.s[k]=scene.current[k]=0x30000000;}
   const hud::Snapshot before=scene;const u32 prior=reads;display(state,in,frame);
@@ -33,6 +33,13 @@ int main(){
  require(!std::strcmp(frame.texts[17].chars,"Off") && !std::strcmp(frame.texts[3].chars,"1300 ms"),"Trine decay");
  const u32 hpkey=frame.paths[3].key;scene.b[16]=0x40000000;display(state,in,frame);
  require(frame.paths[3].key!=hpkey && frame.paths[3].points[16].y<frame.paths[3].points[0].y && frame.paths[3].points[16].y<frame.paths[3].points[31].y,"bandpass response");
+
+ const auto bp=frame.paths[3];scene.b[17]=0;display(state,in,frame);
+ require(!std::strcmp(frame.texts[3].chars,"Off") && frame.paths[3].key==bp.key && !std::memcmp(frame.paths[3].points,bp.points,sizeof(bp.points)),"Decay changed response geometry");
+ scene.b[14]=0x10000000;display(state,in,frame);const auto shifted_bp=frame.paths[3];
+ require(std::memcmp(bp.points,shifted_bp.points,sizeof(bp.points))!=0,"Sweep did not move band");
+ scene.b[15]=0;display(state,in,frame);
+ require(std::memcmp(shifted_bp.points,frame.paths[3].points,sizeof(bp.points))!=0,"Resonance did not change band");
  for(u32 vertical=0;vertical<2;++vertical)for(u32 live=0;live<2;++live){i32 previous=-1000000;
   for(i32 t=-64;t<=64;++t){init_frame(frame);sweep(frame,t,live,vertical);require(d::valid(frame),"Sweep frame invalid");
    const auto& square=frame.nodes[ui::square];const i32 position=vertical?square.y:square.x;
@@ -43,6 +50,24 @@ int main(){
  }
  in.track=11;for(u32 page=1;page<=3;++page)for(u32 mode=0;mode<2;++mode)for(u32 slot=0;slot<16;++slot){words[4]=page;words[3]=mode<<4;words[8]=slot<<4;display(state,in,frame);require(d::valid(frame),"AUX page invalid");}
 
+ // Check both M2 layouts and all glyphs against the real renderer.
+ for(u32 bank=0;bank<2;++bank)for(u32 mode=0;mode<5;++mode){
+  words[6]=bank;words[5]=0x55;words[4]=2;display(state,in,frame);
+  const Frame routing=frame;
+  u32 map=0;for(u32 t=0;t<8;++t)map|=((mode+t)%5)<<(3*t);
+  words[phrases::display_map_word]=map;words[4]=phrases::display_page;display(state,in,frame);
+  require(d::valid(frame),"Invalid phrase frame");
+  require(!std::memcmp(routing.texts,frame.texts,sizeof(frame.texts)),"Holding Shift changed a routing label");
+  for(u32 n=0;n<ui::phrase0;++n)
+   require(!std::memcmp(&routing.nodes[n],&frame.nodes[n],sizeof(frame.nodes[n])),"Phrase screen moved an M2 element");
+  for(u32 t=0;t<8;++t)for(u32 g=0;g<5;++g){
+   const auto& icon=frame.nodes[ui::phrase0+5*t+g];
+   if(g==(t+mode)%5){
+    require(icon.x==static_cast<i32>(162+32*t)*1024 && icon.y==128*1024,"Phrase icon outside its cell");
+    require(icon.shade==(t%2?0u:2u),"Phrase icon lacks tile contrast");
+   }else require(icon.x==640*1024,"A second phrase icon is visible");
+  }
+ }
  words[4]=3;
  for(int level=0;level<80;++level){
   words[7]=(level<<20)|(191<<8);display(state,in,frame);

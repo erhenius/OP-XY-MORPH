@@ -3,6 +3,7 @@
 #include <opxy/track_control.hpp>
 #include <opxy/morph_hud_snapshot.hpp>
 #include "legacy_aux.hpp"
+#include "morph_phrases.hpp"
 #include "stock_plot.hpp"
 #include "trine_sweep.hpp"
 namespace morphcapture {
@@ -54,9 +55,21 @@ inline void aux_m2(Frame& f){
  for(u32 k=0;k<9;++k){f.texts[k]=old.texts[18+k];f.texts[k].scale=old.texts[18+k].scale*static_cast<i32>(sizes[k])/15;}
  for(u32 k=0;k<4;++k)d::header(f,k,old.header[k]);
 }
+inline void aux_phrases(Frame& f) {
+ aux_m2(f);
+ const u32 routes=static_cast<u32>(opxy::control::from_control(5u));
+ const u32 map=static_cast<u32>(opxy::control::from_control(phrases::display_map_word));
+ for(u32 track=0;track<8u;++track){
+  const u32 glyph=ui::phrase0+5u*track+phrases::get(map,track);
+  const i32 center=162+32*static_cast<i32>(track);
+  node(f,glyph,center,128,1024,(routes&(1u<<track))?2u:0u,d::fill_and_stroke);
+ }
+}
+
 inline void aux(Frame& f,DisplayState& s){
  const u32 page=static_cast<u32>(opxy::control::from_control(4u));
  if(page==2){aux_m2(f);return;}
+ if(page==phrases::display_page){aux_phrases(f);return;}
  for(u32 k=0;k<4;++k)node(f,ui::header0+k,120*static_cast<i32>(k),0);
  const u32 mode=static_cast<u32>(opxy::control::from_control(3u));
  if(page!=3){
@@ -262,7 +275,6 @@ inline void shift(Frame& f,const hud::Snapshot& s){
   number(text,at<26&&s.captured_b?norm(s.b[at]):-1);txt(f,s.edit_side?20+k:8+k,312,y+22,text);
  }
 }
-// Match Trine's main page on the five existing Morph frequency-axis marks.
 inline i32 trine_x(u32 i){
  const i32 marks[5]={62,139,193,241,298};
  if(i==32)return marks[4];
@@ -312,6 +324,7 @@ inline void trine_filter(Frame& f,const i32* v,u32 side,bool edit,CurveCache* ca
  for(int k=3;k>=0;--k){label[k]=static_cast<char>('0'+n%10);n/=10;}
  txt(f,text+1,259,88+row,ms?(ms>=1000?label:label+1):"Off",750);
 }
+
 // Stock-resource wireframe plots; values stay next to their controls instead
 // of occupying prose rows across the graph. All curve coordinates are Q10.
 inline void filter(Frame& f,const hud::Snapshot& s,u32 side,CurveCache* cache=0){

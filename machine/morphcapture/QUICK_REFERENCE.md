@@ -1,4 +1,4 @@
-# Morph quick reference — 1.3.1-dev-gui2d16
+# Morph quick reference — 1.3.1-dev-gui2d20
 
 ## AUX M1
 
@@ -14,7 +14,21 @@ The main square travels from A to B. BYPASS uses red striping and a grey square,
 
 ## AUX M2
 
-Existing eight-track inclusion controls and bank selection are unchanged.
+Turn K1–K4 right to route a track, left to exclude it. Press any encoder to switch between tracks 1–4 and 5–8.
+
+### AUX M2 / hold Shift
+
+On AUX M2, hold Shift to see the phrase symbols. Turn K1–K4 to choose a phrase for the highlighted group of four tracks; all eight symbols are visible. Clockwise cycles through Linear, Push, Pull, Stagger and Accent, then back to Linear. Counterclockwise reverses the order. Click any encoder to change bank. Release Shift to return to routing.
+
+| Phrase | Sound on the way from center to A or B |
+| --- | --- |
+| Linear | Follows the sweep. |
+| Push | Moves early. Half travel covers 65% of the distance. |
+| Pull | Moves late. Half travel covers 35% of the distance. |
+| Stagger | Filter controls move early, sends late and envelopes follow the sweep. |
+| Accent | Tape send swells at half travel. An audible tape effect makes it easier to hear. |
+
+All phrases reach the same center and captured endpoints. Phrase assignments are stored per project. The portable A/B preset slots keep their existing scene format.
 
 ## AUX M3
 
@@ -47,3 +61,5 @@ AUX M3 uses smooth square Light Touch/EXP curves. All sixteen preset slots are s
 Dynamic filter: K1 low cut / high-pass cutoff, K2 compression (C), K3 distortion (D), K4 high cut / low-pass cutoff. Cutoff edges are independent. C/D bars are parameter amounts. Other filters use the matching stored model and stock-derived outlines with a moving resonance value.
 
 Filled circle is A; outline circle is B. The little square shows sweep travel, while S is a separate return snapshot. The midpoint is not necessarily S. The complete illustrated guide is `docs/Morph-Quick-Reference.pdf` in the repository, or `Morph-Quick-Reference.pdf` beside the machine folder in the source ZIP.
+
+With Trine selected on an instrument, its Morph M3 HUD shows the captured Shape for each scene (low-pass through band-pass to high-pass), with Q and decay time.

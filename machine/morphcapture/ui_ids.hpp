@@ -142,7 +142,8 @@ const opxy::u32 pixels[65]={67u,67u,68u,68u,68u,68u,68u,68u,68u,69u,69u,70u,70u,
 const opxy::u32 slotSelection=189u;
 const opxy::u32 hudVector=190u, gainUp=191u, gainDown=192u;
 const opxy::u32 padLeft=193u, padRight=194u;
-const opxy::u32 nodes=195u;
+const opxy::u32 phrase0=195u;
+const opxy::u32 nodes=235u;
 const opxy::u32 icons0[]={132u,133u,134u,135u,136u,137u,138u};
 const opxy::u32 icons1[]={139u,140u,141u};
 const opxy::u32 icons2[]={142u,143u,144u,145u,146u,147u};

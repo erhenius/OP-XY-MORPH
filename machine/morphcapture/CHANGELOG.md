@@ -1,3 +1,19 @@
+# gui2d20
+
+Restore the model-specific Trine curve on the instrument M3 HUD for each A/B scene.
+
+# gui2d19 / Hold Shift on AUX M2
+
+Holding Shift overlays phrase symbols on the routing tiles. Releasing it restores normal routing. Encoder turns use the Shift state at input time.
+
+# gui2d18 / Phrase artwork
+
+Shift+M2 shares the eight-track routing layout. Each tile displays its phrase symbol. Turning a knob wraps in both directions.
+
+# gui2d17 / Phrase candidate
+
+AUX Shift+M2 opens Phrase. Assign Linear, Push, Pull, Stagger or Accent independently across the eight instrument tracks. A phrase edit leaves the current send and its readback passes intact, then applies with the next eligible target. The v8 project companion adds four bytes for assignments and reads v1–v7 with Linear defaults. The Manager native bundle includes the SDK recipe for Shift+M2.
+
 # gui2d16 / AUX M3 sensitivity
 
 Import the source ZIP and replace Morph in the same Manager edition as gui2d15.

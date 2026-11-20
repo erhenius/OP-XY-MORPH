@@ -1,9 +1,9 @@
-# gui2d16 / AUX M3 sensitivity
+# Morph gui2d20 for TE Builder
 
-Import the source ZIP and replace Morph in the same Manager edition as gui2d15.
+Import this ZIP using File → Import Machine ZIP. Select Morph-gui2d20 in Available, queue the update, then build and stage on the selected XY. The bundle includes the matching SDK additions.
 
-On AUX M3 turn K2 for pad sensitivity (−90% to +200%, then Instant). Press K2 to cycle Light Touch, Linear and EXP. At half pressure they give about 80%, 50% and 15% speed. The displayed curves follow the pad response tables.
+Open Morph AUX M2. Hold Shift to see a phrase symbol inside each routing tile. A white tile gets a black symbol and a black tile gets a white symbol. Turn K1–K4 to edit the highlighted bank. Click any encoder to switch banks. Release Shift to see and edit routing again.
 
-Turn K3 to adjust held HUD K4 sensitivity (−95% to +300%). Its vertical arrow shares the pad arrow’s origin. Turn K4 to select a preset, press K3 to load and press K4 to save.
+The phrase order is Linear, Push, Pull, Stagger, Accent. It wraps in both directions. The quick reference includes examples of both banks.
 
-This version removes the timing readouts. The project companion still uses 5,684 bytes. It saves version 7 and loads versions 1 through 7, including the former Instant setting. Keep older project companions for rollback to earlier builds.
+With Trine selected on an instrument, its Morph M3 HUD shows the captured Shape for each scene (low-pass through band-pass to high-pass), with Q and decay time.

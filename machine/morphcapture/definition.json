@@ -60,18 +60,18 @@
       "stateAlignment": 4,
       "paths": 4,
       "points": 64,
-      "nodes": 195,
+      "nodes": 235,
       "texts": 32,
       "palette": 8
     },
     "trackControl": {
-      "stateBytes": 4412,
+      "stateBytes": 4436,
       "stateAlignment": 4,
       "unique": true,
       "aux": [
         12
       ],
-      "savedBytes": 5684,
+      "savedBytes": 5688,
       "sharedLfo": true
     }
   }
